@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  passwordHash  String?
+  fullName      String
+  role          Role       @default(USER)
+  googleId      String?    @unique
+  masterPinHash String?
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Entity Relationships 
+  notebooks     Notebook[]  // 1 user can have many notebook  (1-to-Many)
+  notes         Note[]  // 1 user can have many note (1-to-Many)
+  auditLogs     AuditLog[]  // 1 user can have many Audit Log (1-to-Many)
+
+  @@index([email]) 
+}
+
+model Notebook {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  color       String?  @default("#3B82F6")
+  icon        String?  @default("book")
+  position    Float    @default(0.0)
+  
+  // User Relationship (1-to-Many Connection with User)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Cascade Meaning: If a user is deleted, all their notebooks will be automatically deleted.
+
+  // Note Relationship (1-to-Many Connection with Note)
+  notes       Note[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, position])  // Index to load notebooks in custom order by user
+}
+
+model Note {
+  id             String    @id @default(uuid())
+  
+  // Zero-Knowledge Encrypted Data
+  title          String    @db.Text      // AES-256-GCM Encrypted Title (Base64)
+  content        String    @db.Text     // AES-256-GCM Encrypted Title (Base64)
+  
+
+  // Encryption Metadata
+  iv             String                        // Initialization Vector
+  authTag        String                       // Authentication Tag
+  isEncrypted    Boolean   @default(true)    // To keep track of whether data is encrypted
+
+  // UX Features
+  isPinned       Boolean   @default(false)             // The pinned note will remain at the top.
+  color          String?   @default("#FFFFFF")      // Note background color
+  tags           String[]  @default([])              // note tags
+  position       Float     @default(0.0)            // Drag-and-drop reordering
+
+  // Soft Delete Lifecycle
+  isDeleted      Boolean   @default(false)     // To send to the Trash/Bin system (Soft Delete)
+  deletedAt      DateTime?                    // When it was deleted (for permanent deletion after 30 days)
+
+  // Concurrency Control (To prevent conflicts when the same note is edited from two locations.)
+  version        Int       @default(1)
+
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notebookId     String?   // The note might not be inside a notebook (optional).
+  notebook       Notebook? @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  // SetNull Meaning: Even if the notebook is deleted, the actual note data will not be erased; only the `notebookId` will become null.
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Multi-Column Composite Indexing (For fast queries)
+  @@index([userId, isDeleted, createdAt])   // To quickly read the active notes on the homepage
+  @@index([userId, notebookId])            // To quickly filter notes from a specific notebook
+  @@index([notebookId, position])         // To display custom orders inside the notebook
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // What action has been taken ("USER_LOGIN", "NOTE_DELETE")
+  ipAddress String?  // user ip address
+  userAgent String?  // Browser or device information
+  details   Json?    // Additional detailed data (in JSON format)
+
+  // User Relationship
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])  // To quickly load the security history of a specific user
+}
