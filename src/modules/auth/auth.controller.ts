@@ -4,6 +4,7 @@ import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { GetUser } from '../../common/decorators/get-user.decorator';
 
 // Base Route: /auth
 @Controller('auth')
@@ -51,11 +52,11 @@ export class AuthController {
    */
     @UseGuards(JwtAuthGuard)
     @Get('profile')
-    getProfile(@Request() req) {
+    getProfile(@GetUser() user: { id: string; email: string; name: string }) {
         // JwtStrategy-র validate() থেকে আসা ইউজারের ডাটা req.user-এ পাওয়া যাবে
         return {
             message: 'Profile retrieved successfully',
-            user: req.user,
+            user,
         };
     }
 }
