@@ -4,11 +4,13 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { PrismaModule } from '../prisma/prisma.module';
 
 
 @Module({
   imports: [
-    PassportModule,
+    PrismaModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'super-secret-jwt-key',
       signOptions: { expiresIn: '7d' }, // টোকেন মেয়াদ ৭ দিন
@@ -16,7 +18,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy], // JwtStrategy যুক্ত করা হলো
-  exports: [AuthService],
+  exports: [AuthService, JwtModule, PassportModule],
 })
 
 export class AuthModule { }
