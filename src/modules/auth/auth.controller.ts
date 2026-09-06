@@ -1,8 +1,9 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Request, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 // Base Route: /auth
 @Controller('auth')
@@ -42,5 +43,19 @@ export class AuthController {
     @Post('reset-password')
     async resetPassword(@Body() dto: ResetPasswordDto) {
         return this.authService.resetPassword(dto);
+    }
+
+    /**
+   * [GET] /auth/profile (Protected Route)
+   * @UseGuards(JwtAuthGuard): এই ডেকোরেটরটির কারণে বৈধ JWT Token ছাড়া কেউ এই রুটে ঢুকতে পারবে না।
+   */
+    @UseGuards(JwtAuthGuard)
+    @Get('profile')
+    getProfile(@Request() req) {
+        // JwtStrategy-র validate() থেকে আসা ইউজারের ডাটা req.user-এ পাওয়া যাবে
+        return {
+            message: 'Profile retrieved successfully',
+            user: req.user,
+        };
     }
 }
