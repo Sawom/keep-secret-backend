@@ -1,34 +1,94 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotebookService } from './notebook.service';
 import { CreateNotebookDto } from './dto/create-notebook.dto';
 import { UpdateNotebookDto } from './dto/update-notebook.dto';
 
-@Controller('notebook')
+
+// Express-এর Request ইন্টারফেস এক্সটেন্ড করে লগড-ইন ইউজারের পে লোড সংজ্ঞায়িত করা
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: string;
+    email: string;
+  };
+}
+
+/**
+ * Controller Routing: `/notebooks`
+ * `@UseGuards(JwtAuthGuard)` দিয়ে কন্ট্রোলারের সব এপিআই-কে প্রটেক্ট করা হয়েছে।
+ * অর্থাৎValid JWT Token ছাড়া কেউ এই এপিআইগুলো ব্যবহার করতে পারবে না।
+ */
+
+@UseGuards(JwtAuthGuard)
+@Controller('notebooks')
 export class NotebookController {
   constructor(private readonly notebookService: NotebookService) { }
 
+  /**
+   * [POST /notebooks]
+   * কী করে: নতুন নোটবুক তৈরি করে।
+   * কীভাবে কাজ করে: `req.user.userId` থেকে লগড-ইন ইউজারের আইডি বের করে সার্ভিস ফাংশনে পাঠায়।
+   */
   @Post()
-  create(@Body() createNotebookDto: CreateNotebookDto) {
-    return this.notebookService.create(createNotebookDto);
+  create(
+    @Req() req: AuthenticatedRequest,
+    @Body() createNotebookDto: CreateNotebookDto,
+  ) {
+    return this.notebookService.create(req.user.userId, createNotebookDto);
   }
+
+  /**
+   * [GET /notebooks]
+   * কী করে: লগড-ইন ইউজারের সব নোটবুকের তালিকা নিয়ে আসে।
+   */
 
   @Get()
-  findAll() {
-    return this.notebookService.findAll();
+  findAll(@Req() req: AuthenticatedRequest) {
+    return this.notebookService.findAllByUser(req.user.userId);
   }
+
+  /**
+   * [GET /notebooks/:id]
+   * কী করে: ইউআরএল প্যারামিটার (`:id`) থেকে আইডি নিয়ে নির্দিষ্ট নোটবুক দেখায়।
+   */
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.notebookService.findOne(+id);
+  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.notebookService.findOne(id, req.user.userId);
   }
+
+  /**
+   * [PATCH /notebooks/:id]
+   * কী করে: নির্দিষ্ট একটি নোটবুকের ফিল্ড আপডেট করে।
+   */
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateNotebookDto: UpdateNotebookDto) {
-    return this.notebookService.update(+id, updateNotebookDto);
+  update(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() updateNotebookDto: UpdateNotebookDto,
+  ) {
+    return this.notebookService.update(id, req.user.userId, updateNotebookDto);
   }
 
+  /**
+   * [DELETE /notebooks/:id]
+   * কী করে: নির্দিষ্ট একটি নোটবুক মুছে ফেলে।
+   */
+
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.notebookService.remove(+id);
+  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.notebookService.remove(id, req.user.userId);
   }
+
 }
