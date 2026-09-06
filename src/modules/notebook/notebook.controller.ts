@@ -18,7 +18,7 @@ import { UpdateNotebookDto } from './dto/update-notebook.dto';
 // Express-এর Request ইন্টারফেস এক্সটেন্ড করে লগড-ইন ইউজারের পে লোড সংজ্ঞায়িত করা
 interface AuthenticatedRequest extends Request {
   user: {
-    userId: string;
+    id: string;
     email: string;
   };
 }
@@ -37,14 +37,14 @@ export class NotebookController {
   /**
    * [POST /notebooks]
    * কী করে: নতুন নোটবুক তৈরি করে।
-   * কীভাবে কাজ করে: `req.user.userId` থেকে লগড-ইন ইউজারের আইডি বের করে সার্ভিস ফাংশনে পাঠায়।
+   * কীভাবে কাজ করে: `req.user.id` থেকে লগড-ইন ইউজারের আইডি বের করে সার্ভিস ফাংশনে পাঠায়।
    */
   @Post()
   create(
     @Req() req: AuthenticatedRequest,
     @Body() createNotebookDto: CreateNotebookDto,
   ) {
-    return this.notebookService.create(req.user.userId, createNotebookDto);
+    return this.notebookService.create(req.user.id, createNotebookDto);
   }
 
   /**
@@ -54,7 +54,7 @@ export class NotebookController {
 
   @Get()
   findAll(@Req() req: AuthenticatedRequest) {
-    return this.notebookService.findAllByUser(req.user.userId);
+    return this.notebookService.findAllByUser(req.user.id);
   }
 
   /**
@@ -64,7 +64,7 @@ export class NotebookController {
 
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.notebookService.findOne(id, req.user.userId);
+    return this.notebookService.findOne(id, req.user.id);
   }
 
   /**
@@ -78,7 +78,7 @@ export class NotebookController {
     @Req() req: AuthenticatedRequest,
     @Body() updateNotebookDto: UpdateNotebookDto,
   ) {
-    return this.notebookService.update(id, req.user.userId, updateNotebookDto);
+    return this.notebookService.update(id, req.user.id, updateNotebookDto);
   }
 
   /**
@@ -88,7 +88,7 @@ export class NotebookController {
 
   @Delete(':id')
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.notebookService.remove(id, req.user.userId);
+    return this.notebookService.remove(id, req.user.id);
   }
 
 }
