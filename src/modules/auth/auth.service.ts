@@ -34,12 +34,10 @@ export class AuthService {
     */
 
     async register(dto: RegisterDto) {
-        // পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড এক আছে কি না চেক
         if (dto.password !== dto.confirmPassword) {
             throw new BadRequestException('Passwords do not match');
         }
 
-        // ইমেইল আগে থেকেই আছে কি না চেক
         const existingUser = await this.prisma.user.findUnique({
             where: { email: dto.email },
         });
@@ -48,23 +46,25 @@ export class AuthService {
             throw new BadRequestException('User with this email already exists');
         }
 
-        // bcryptjs দিয়ে পাসওয়ার্ড হ্যাশ করা (Salt Round = 10)
         const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-        // Prisma দিয়ে ডাটাবেসে ইউজার সেভ
         const user = await this.prisma.user.create({
             data: {
                 fullName: dto.name,
                 email: dto.email,
-                password: hashedPassword,
+                passwordHash: hashedPassword,
             },
         });
 
-        // পাসওয়ার্ড বাদে ইউজার ডাটা এবং JWT টোকেন রিটার্ন
         const token = this.generateToken(user.id, user.email);
         return {
             message: 'Registration successful',
-            user: { id: user.id, name: user.fullName, email: user.email },
+            user: {
+                id: user.id,
+                name: user.fullName,
+                email: user.email,
+                role: user.role,
+            },
             accessToken: token,
         };
     }
@@ -82,7 +82,6 @@ export class AuthService {
             throw new UnauthorizedException('Invalid email or password');
         }
 
-        // পাসওয়ার্ড সিকিউরলি ম্যাচ চেক করা
         const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
         if (!isPasswordValid) {
             throw new UnauthorizedException('Invalid email or password');
@@ -91,7 +90,12 @@ export class AuthService {
         const token = this.generateToken(user.id, user.email);
         return {
             message: 'Login successful',
-            user: { id: user.id, name: user.fullName, email: user.email },
+            user: {
+                id: user.id,
+                name: user.fullName,
+                email: user.email,
+                role: user.role,
+            },
             accessToken: token,
         };
     }
@@ -107,7 +111,6 @@ export class AuthService {
         });
 
         if (!user) {
-            // অ্যাকাউন্ট না থাকলে অটোমেটিক নতুন রেজিস্ট্রেশন
             user = await this.prisma.user.create({
                 data: {
                     fullName: googleProfile.name,
@@ -116,7 +119,6 @@ export class AuthService {
                 },
             });
         } else if (!user.googleId) {
-            // যদি আগে ম্যানুয়াল ইমেইল দিয়ে একাউন্ট করে থাকে, তবে তার অ্যাকাউন্টে googleId লিঙ্ক করে দেবে
             user = await this.prisma.user.update({
                 where: { id: user.id },
                 data: { googleId: googleProfile.googleId },
@@ -126,7 +128,12 @@ export class AuthService {
         const token = this.generateToken(user.id, user.email);
         return {
             message: 'Google login successful',
-            user: { id: user.id, name: user.fullName, email: user.email },
+            user: {
+                id: user.id,
+                name: user.fullName,
+                email: user.email,
+                role: user.role,
+            },
             accessToken: token,
         };
     }
@@ -145,14 +152,24 @@ export class AuthService {
             throw new NotFoundException('No account found with this email');
         }
 
-        // ১৬ বাইটের একটি র‍্যান্ডম হেক্স টোকেন তৈরি
+        // ৩২ বাইটের সিকিউর র‍্যান্ডম হেক্স টোকেন তৈরি
         const resetToken = crypto.randomBytes(32).toString('hex');
 
-        // (এখানে ভবিষ্যতে ইমেইল সার্ভিসের মাধ্যমে ইউজারের ইমেইলে রিসেট লিঙ্ক পাঠানো হবে)
+        // টোকেনের মেয়াদ ১ ঘণ্টা (১ * ৬০ * ৬০ * ১০০০ মিলিডিসেকেন্ড) নির্ধারণ
+        const resetTokenExpiry = new Date(Date.now() + 3600000);
+
+        // ডাটাবেসে রিসেট টোকেন এবং এক্সপায়ারি টাইম আপডেট
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                resetToken,
+                resetTokenExpiry,
+            },
+        });
 
         return {
-            message: 'Password reset link sent to your email',
-            resetToken, // ডেভেলপমেন্ট টেস্টিংয়ের জন্য রিটার্ন করা হচ্ছে
+            message: 'Password reset token generated successfully',
+            resetToken, // ইমেইল সার্ভিস যুক্ত না করা পর্যন্ত টেস্টিংয়ের জন্য রিটার্ন রাখা হলো
         };
     }
 
@@ -160,8 +177,32 @@ export class AuthService {
         * [৫. নতুন পাসওয়ার্ড সেভ]
    */
     async resetPassword(dto: ResetPasswordDto) {
-        // (এখানে টোকেন ভ্যালিডেশন লজিক চেক হবে)
+        // ১. টোকেন দিয়ে ইউজার খোঁজা এবং টোকেনের মেয়াদ চেক করা
+        const user = await this.prisma.user.findFirst({
+            where: {
+                resetToken: dto.token,
+                resetTokenExpiry: {
+                    gt: new Date(), // টোকেনের মেয়াদ বর্তমান সময়ের চেয়ে বেশি হতে হবে
+                },
+            },
+        });
+
+        if (!user) {
+            throw new BadRequestException('Invalid or expired reset token');
+        }
+
+        // ২. নতুন পাসওয়ার্ড হ্যাশ করা
         const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
+
+        // ৩. ডাটাবেসে নতুন পাসওয়ার্ড আপডেট করা এবং রিসেট টোকেন মুছে ফেলা
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                passwordHash: hashedPassword,
+                resetToken: null,       // টোকেন একবার ব্যবহার হয়ে গেলে মুছে দেওয়া হলো
+                resetTokenExpiry: null,
+            },
+        });
 
         return {
             message: 'Password has been reset successfully',
