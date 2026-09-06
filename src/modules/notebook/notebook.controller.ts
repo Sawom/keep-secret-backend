@@ -5,7 +5,7 @@ import { UpdateNotebookDto } from './dto/update-notebook.dto';
 
 @Controller('notebook')
 export class NotebookController {
-  constructor(private readonly notebookService: NotebookService) {}
+  constructor(private readonly notebookService: NotebookService) { }
 
   @Post()
   create(@Body() createNotebookDto: CreateNotebookDto) {

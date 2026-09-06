@@ -93,5 +93,51 @@ export class NotebookService {
     return notebook;
   }
 
+  /**
+   * [৪. নোটবুক আপডেট করা]
+   * 
+   * কী কাজ করে: নির্দিষ্ট একটি নোটবুকের তথ্য (যেমন: টাইটেল, আইকন, কালার) পরিবর্তন করে।
+   * কীভাবে কাজ করে:
+   * - প্রথমে `this.findOne(id, userId)` কল করে চেক করা হয় নোটবুকটির অস্তিত্ব এবং সিকিউরিটি অনারশিপ ঠিক আছে কি না।
+   * - ভ্যালিডেশন পাস করলে Prisma-র `update` মেথড দিয়ে ক্লায়েন্ট থেকে পাঠানো নতুন ডাটা সেট করা হয়।
+   */
+
+  async update(id: string, userId: string, dto: UpdateNotebookDto) {
+    // অনারশিপ নিশ্চিত করা
+    await this.findOne(id, userId);
+
+    // আপডেট অপারেশন
+    const updateNotebook = await this.prisma.notebook.update({
+      where: { id },
+      data: {
+        ...dto,
+      },
+    });
+    return updateNotebook
+  }
+
+  /**
+   * [৫. নোটবুক মুছে ফেলা (Delete)]
+   * 
+   * কী কাজ করে: একটি নোটবুক ডাটাবেস থেকে ডিলিট করে।
+   * কীভাবে কাজ করে:
+   * - প্রথমে `this.findOne(id, userId)` দিয়ে ইউজার সিকিউরিটি ভ্যালিডেট করা হয়।
+   * - অনারশিপ নিশ্চিত হলে Prisma-র `delete` দিয়ে সেটি মুছে দেওয়া হয়।
+   * - (নোট: Prisma Schema-তে `onDelete: SetNull` থাকার কারণে এই নোটবুক ডিলিট হলেও এর ভেতরের নোটগুলো ডিলিট হবে না, শুধু সেগুলোর `notebookId` খালি/null হয়ে যাবে)।
+   */
+
+  async remove(id: string, userId: string) {
+    // অনারশিপ ও অস্তিত্ব নিশ্চিত করা
+    await this.findOne(id, userId);
+
+    // ডিলিট অপারেশন
+    await this.prisma.notebook.delete({
+      where: { id },
+    });
+
+    return {
+      message: 'Notebook deleted successfully',
+    };
+  }
 
 }
