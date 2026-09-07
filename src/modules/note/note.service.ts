@@ -16,7 +16,7 @@ export class NoteService {
      * কী কাজ করে: ফ্রন্টএন্ড থেকে প্রাপ্ত এনক্রিপ্টেড নোট এবং মেটাডাটা (iv, authTag) সেভ করে।
      * কীভাবে কাজ করে:
      * - নোটবুক আইডি দেওয়া থাকলে সেটি ইউজারের নিজের নোটবুক কি না ভ্যালিডেট করে।
-     * - ডাটাবেসে `isArchived: false` ও `isTrashed: false` অবস্থায় সেভ করে।
+     * - ডাটাবেসে `isArchived: false` ও `isDeleted: false` অবস্থায় সেভ করে।
   */
   async create(userId: string, dto: CreateNoteDto) {
     if (dto.notebookId) {
@@ -46,14 +46,14 @@ export class NoteService {
 
   /**
    * [২. ইউজারের সব সক্রিয় নোট গেট করা]
-   * কী কাজ করে: ট্র্যাশে না থাকা (isTrashed: false) সব নোট পিন ও ডেট অনুযায়ী ফিল্টার করে নিয়ে আসে।
+   * কী কাজ করে: ট্র্যাশে না থাকা (isDeleted: false) সব নোট পিন ও ডেট অনুযায়ী ফিল্টার করে নিয়ে আসে।
   */
 
   async findAllByUser(userId: string, notebookId?: string) {
     return this.prisma.note.findMany({
       where: {
         userId,
-        isTrashed: false,
+        isDeleted: false,
         ...(notebookId ? { notebookId } : {}),
       },
       orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
@@ -97,7 +97,7 @@ export class NoteService {
 
   /**
    * [৫. সফট ડিলিট / ট্র্যাশে পাঠানো (Soft Delete)]
-   * কী কাজ করে: নোট স্থায়ীভাবে ডিলিট না করে `isTrashed: true` সেট করে রিসাইকেল বিনের মতো রাখে।
+   * কী কাজ করে: নোট স্থায়ীভাবে ডিলিট না করে `isDeleted: true` সেট করে রিসাইকেল বিনের মতো রাখে।
   */
 
   async softDelete(id: string, userId: string) {
@@ -106,7 +106,7 @@ export class NoteService {
     return this.prisma.note.update({
       where: { id },
       data: {
-        isTrashed: true,
+        isDeleted: true,
         deletedAt: new Date(),
       },
     });
