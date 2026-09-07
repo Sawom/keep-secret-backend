@@ -1,34 +1,29 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { AuditLogService } from './audit-log.service';
-import { CreateAuditLogDto } from './dto/create-audit-log.dto';
-import { UpdateAuditLogDto } from './dto/update-audit-log.dto';
+import { Request } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@Controller('audit-log')
+interface AuthenticatedRequest extends Request {
+  user: {
+    id: string;
+    email: string;
+  };
+}
+
+@UseGuards(JwtAuthGuard)
+@Controller('audit-logs')
 export class AuditLogController {
-  constructor(private readonly auditLogService: AuditLogService) {}
+  constructor(private readonly auditLogService: AuditLogService) { }
 
-  @Post()
-  create(@Body() createAuditLogDto: CreateAuditLogDto) {
-    return this.auditLogService.create(createAuditLogDto);
-  }
-
+  /**
+   * [GET /audit-logs]
+   * ইউজারের নিজের সব সিকিউরিটি অ্যাক্টিভিটি লগ নিয়ে আসবে।
+   */
   @Get()
-  findAll() {
-    return this.auditLogService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.auditLogService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAuditLogDto: UpdateAuditLogDto) {
-    return this.auditLogService.update(+id, updateAuditLogDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.auditLogService.remove(+id);
+  findAll(
+    @Req() req: AuthenticatedRequest,
+    @Query('limit') limit?: number,
+  ) {
+    return this.auditLogService.findAllByUser(req.user.id, limit ?? 50);
   }
 }
