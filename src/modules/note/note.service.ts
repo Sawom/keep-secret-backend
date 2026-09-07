@@ -1,26 +1,64 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class NoteService {
-  create(createNoteDto: CreateNoteDto) {
-    return 'This action adds a new note';
+  constructor(private readonly prisma: PrismaService) { }
+
+  /**
+     * [১. নতুন এনক্রিপ্টেড নোট তৈরি]
+     * কী কাজ করে: ফ্রন্টএন্ড থেকে প্রাপ্ত এনক্রিপ্টেড নোট এবং মেটাডাটা (iv, authTag) সেভ করে।
+     * কীভাবে কাজ করে:
+     * - নোটবুক আইডি দেওয়া থাকলে সেটি ইউজারের নিজের নোটবুক কি না ভ্যালিডেট করে।
+     * - ডাটাবেসে `isArchived: false` ও `isTrashed: false` অবস্থায় সেভ করে।
+  */
+  async create(userId: string, dto: CreateNoteDto) {
+    if (dto.notebookId) {
+      const notebook = await this.prisma.notebook.findUnique({
+        where: { id: dto.notebookId },
+      });
+
+      if (!notebook || notebook.userId !== userId) {
+        throw new ForbiddenException('Invalid Notebook ID');
+      }
+    }
+
+    return this.prisma.note.create({
+      data: {
+        title: dto.title,
+        content: dto.content,
+        iv: dto.iv,
+        authTag: dto.authTag,
+        color: dto.color ?? '#FFFFFF',
+        isPinned: dto.isPinned ?? false,
+        notebookId: dto.notebookId ?? null,
+        userId,
+      },
+    });
+
   }
 
-  findAll() {
-    return `This action returns all note`;
+  /**
+   * [২. ইউজারের সব সক্রিয় নোট গেট করা]
+   * কী কাজ করে: ট্র্যাশে না থাকা (isTrashed: false) সব নোট পিন ও ডেট অনুযায়ী ফিল্টার করে নিয়ে আসে।
+  */
+
+  async findAllByUser(userId: string, notebookId?: string) {
+    return this.prisma.note.findMany({
+      where: {
+        userId,
+        isTrashed: false,
+        ...(notebookId ? { notebookId } : {}),
+      },
+      orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} note`;
-  }
 
-  update(id: number, updateNoteDto: UpdateNoteDto) {
-    return `This action updates a #${id} note`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} note`;
-  }
 }

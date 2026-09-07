@@ -1,3 +1,5 @@
+//**  ক্লায়েন্ট থেকে ডাটা আসার সময় তা ভ্যালিডেট করার জন্য আমরা DTO (Data Transfer Object) ব্যবহার করি। */
+
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 // পাসওয়ার্ড ভুলে গেলে ইমেইল পাঠানোর জন্য
