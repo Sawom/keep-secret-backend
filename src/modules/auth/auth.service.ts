@@ -11,6 +11,7 @@ import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 // @Injectable: NestJS-কে বলে যে এটি একটি Provider সার্ভিস যা কন্ট্রোলারে ইনজেক্ট হবে
 @Injectable()
@@ -18,6 +19,7 @@ export class AuthService {
     constructor(
         private readonly prisma: PrismaService,     // ডাটাবেস অপারেশন চালানোর জন্য
         private readonly jwtService: JwtService,   // JWT Token জেনারেট করার জন্য
+        private readonly auditLogService: AuditLogService,  // AuditLog inject
     ) { }
 
     /**
@@ -88,6 +90,16 @@ export class AuthService {
         }
 
         const token = this.generateToken(user.id, user.email);
+
+        // [Audit Log Trigger]: সফল লগইনের পর লগ সেভ 
+        await this.auditLogService.log(user.id, {
+            action: 'USER_LOGIN',
+            details: {
+                message: `User ${user.email} successfully logged in`,
+                email: user.email,
+            },
+        });
+
         return {
             message: 'Login successful',
             user: {
