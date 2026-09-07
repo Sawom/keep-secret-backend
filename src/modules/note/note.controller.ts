@@ -45,6 +45,21 @@ export class NoteController {
     return this.noteService.findAllByUser(req.user.id, notebookId);
   }
 
+  /**
+   * [GET /notes/trash]
+   * সফট ডিলিট বা ট্র্যাশে থাকা সব নোট দেখতে পাওয়ার এপিআই
+   */
+
+  @Get('trash')
+  getTrashNotes(@Req() req: AuthenticatedRequest) {
+    return this.noteService.findTrashByUser(req.user.id);
+  }
+
+  /**
+   * [GET /notes/:id]
+   * নির্দিষ্ট আইডি দিয়ে নোট দেখার এপিআই (সবসময় 'trash'-এর নিচে থাকবে)
+   */
+
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.noteService.findOne(id, req.user.id);
@@ -69,13 +84,6 @@ export class NoteController {
     return this.noteService.hardDelete(id, req.user.id);
   }
 
-  /**
-   * [GET /notes/trash]
-   * সফট ডিলিট বা ট্র্যাশে থাকা সব নোট দেখতে পাওয়ার এপিআই
-   */
-  @Get(':id/trash')
-  getTrashNotes(@Req() req: AuthenticatedRequest) {
-    return this.noteService.findTrashByUser(req.user.id);
-  }
+
 
 }
