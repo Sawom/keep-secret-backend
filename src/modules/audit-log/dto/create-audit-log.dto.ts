@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 
 /**
  * সিস্টেমের বিভিন্ন অ্যাকশন অটোমেটিক লগ করার জন্য DTO।
@@ -20,9 +20,9 @@ export class CreateAuditLogDto {
     ipAddress?: string;
 
     // অ্যাকশন সম্পর্কিত অতিরিক্ত তথ্য (JSON/String ফরম্যাটে) (ঐচ্ছিক)
-    @IsString()
+    @IsObject()
     @IsOptional()
-    details?: string;
+    details?: Record<string, any>;
 }
 
 
