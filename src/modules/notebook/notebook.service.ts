@@ -6,12 +6,16 @@ import {
 import { CreateNotebookDto } from './dto/create-notebook.dto';
 import { UpdateNotebookDto } from './dto/update-notebook.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 @Injectable()
 export class NotebookService {
 
   // ডাটাবেস অপারেশনের জন্য PrismaService ইনজেক্ট করা হয়েছে
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLogService: AuditLogService,
+  ) { }
 
   /**
    * [১. নতুন নোটবুক তৈরি করা]
@@ -23,6 +27,7 @@ export class NotebookService {
    */
 
   async create(userId: string, dto: CreateNotebookDto) {
+
     const newNotebook = await this.prisma.notebook.create({
       data: {
         title: dto.title,
@@ -32,7 +37,14 @@ export class NotebookService {
         position: dto.position ?? 0.0,
         userId: userId, // ইউজারের ফরেন কি (Foreign Key) অ্যাসাইন করা হচ্ছে
       },
-    })
+    });
+
+    // [Audit Log Trigger]: নোটবুক ক্রিয়েটের লগ
+    await this.auditLogService.log(userId, {
+      action: 'NOTEBOOK_CREATE',
+      details: { noteId: newNotebook.id, title: newNotebook.title },
+    });
+
     return newNotebook;
   }
 
@@ -133,6 +145,12 @@ export class NotebookService {
     // ডিলিট অপারেশন
     await this.prisma.notebook.delete({
       where: { id },
+    });
+
+    // [Audit Log Trigger]: নোটবুক ডিলিটের লগ
+    await this.auditLogService.log(userId, {
+      action: 'NOTEBOOK_DELETE',
+      details: { noteId: id },
     });
 
     return {
