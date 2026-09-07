@@ -6,10 +6,14 @@ import {
 import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 @Injectable()
 export class NoteService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLogService: AuditLogService,  // AuditLog inject
+  ) { }
 
   /**
      * [১. নতুন এনক্রিপ্টেড নোট তৈরি]
@@ -29,7 +33,7 @@ export class NoteService {
       }
     }
 
-    return this.prisma.note.create({
+    const newNote = await this.prisma.note.create({
       data: {
         title: dto.title,
         content: dto.content,
@@ -42,6 +46,13 @@ export class NoteService {
       },
     });
 
+    //  [Audit Log Trigger]: নোট তৈরি সফল হলে অডিট লগ সেভ হবে
+    await this.auditLogService.log(userId, {
+      action: 'NOTE_CREATE',
+      details: { noteId: newNote.id, title: newNote.title }, // details in json format
+    });
+
+    return newNote;
   }
 
   /**
@@ -103,13 +114,21 @@ export class NoteService {
   async softDelete(id: string, userId: string) {
     await this.findOne(id, userId);
 
-    return this.prisma.note.update({
+    const updatedNote = await this.prisma.note.update({
       where: { id },
       data: {
         isDeleted: true,
         deletedAt: new Date(),
       },
     });
+
+    // [Audit Log Trigger]: ট্র্যাশে পাঠানোর লগ সেভ
+    await this.auditLogService.log(userId, {
+      action: 'NOTE_TRASH',
+      details: { noteId: id },
+    });
+
+    return updatedNote;
   }
 
   /**
@@ -121,6 +140,12 @@ export class NoteService {
 
     await this.prisma.note.delete({
       where: { id },
+    });
+
+    // [Audit Log Trigger]: পারমানেন্ট ডিলিটের লগ সেভ
+    await this.auditLogService.log(userId, {
+      action: 'NOTE_PERMANENT_DELETE',
+      details: { noteId: id },
     });
 
     return { message: 'Note permanently deleted' };
