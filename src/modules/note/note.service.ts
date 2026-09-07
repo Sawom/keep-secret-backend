@@ -22,6 +22,7 @@ export class NoteService {
      * - নোটবুক আইডি দেওয়া থাকলে সেটি ইউজারের নিজের নোটবুক কি না ভ্যালিডেট করে।
      * - ডাটাবেসে `isArchived: false` ও `isDeleted: false` অবস্থায় সেভ করে।
   */
+
   async create(userId: string, dto: CreateNoteDto) {
     if (dto.notebookId) {
       const notebook = await this.prisma.notebook.findUnique({
@@ -134,7 +135,7 @@ export class NoteService {
   /**
    * [৬. স্থায়ীভাবে নোট ডিলিট করা (Hard Delete)]
    * কী কাজ করে: ডাটাবেস থেকে রিমুভ করে ফেলে।
-   */
+  */
   async hardDelete(id: string, userId: string) {
     await this.findOne(id, userId);
 
@@ -149,6 +150,22 @@ export class NoteService {
     });
 
     return { message: 'Note permanently deleted' };
+  }
+
+  /**
+   * [ট্র্যাশে থাকা নোটগুলোর লিস্ট পাওয়া]
+   * কী কাজ করে: ইউজারের সফট ডিলিট হওয়া সব নোট গেট করে।
+   */
+  async findTrashByUser(userId: string) {
+    return this.prisma.note.findMany({
+      where: {
+        userId,
+        isDeleted: true, // শুধু ট্র্যাশে থাকা নোটগুলো ফিল্টার করা হচ্ছে
+      },
+      orderBy: {
+        deletedAt: 'desc', // যেগুলো সম্প্রতি ট্র্যাশে পাঠানো হয়েছে সেগুলো ওপরে থাকবে
+      },
+    });
   }
 
 }

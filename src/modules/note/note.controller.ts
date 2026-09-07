@@ -69,4 +69,13 @@ export class NoteController {
     return this.noteService.hardDelete(id, req.user.id);
   }
 
+  /**
+   * [GET /notes/trash]
+   * সফট ডিলিট বা ট্র্যাশে থাকা সব নোট দেখতে পাওয়ার এপিআই
+   */
+  @Get(':id/trash')
+  getTrashNotes(@Req() req: AuthenticatedRequest) {
+    return this.noteService.findTrashByUser(req.user.id);
+  }
+
 }
