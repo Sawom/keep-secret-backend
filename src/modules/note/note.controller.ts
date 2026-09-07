@@ -56,6 +56,16 @@ export class NoteController {
   }
 
   /**
+  * [DELETE /notes/trash/empty]
+  * ট্র্যাশ খালি করার রাউট (অবশ্যই @Delete(':id')-এর ওপরে রাখবে)
+  */
+
+  @Delete('trash/empty')
+  emptyTrash(@Req() req: AuthenticatedRequest) {
+    return this.noteService.emptyTrash(req.user.id);
+  }
+
+  /**
    * [GET /notes/:id]
    * নির্দিষ্ট আইডি দিয়ে নোট দেখার এপিআই (সবসময় 'trash'-এর নিচে থাকবে)
    */
@@ -79,11 +89,72 @@ export class NoteController {
     return this.noteService.softDelete(id, req.user.id);
   }
 
+  /**
+   * [PATCH /notes/:id/restore]
+   * ট্র্যাশ থেকে নোট রিস্টোর করার রাউট
+   */
+
+  @Patch(':id/restore')
+  restoreNote(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.noteService.restoreNote(id, req.user.id);
+  }
+
   @Delete(':id')
   hardDelete(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.noteService.hardDelete(id, req.user.id);
   }
 
-
-
 }
+
+/**
+  ৩টি গোল্ডেন রুল (Route Order Rules)
+  রুল ১: Static Path সবসময় ওপরে থাকবে
+  যেসব ইউআরএলে কোনো কোলোন (:) নেই, মানে নির্দিষ্ট শব্দ দিয়ে রাউট তৈরি (যেমন: trash, trash/empty, search, me), সেগুলোকে ফাইলের সবার ওপরে রাখতে হবে।
+
+  রুল ২: Dynamic Parameter (:id) রাউট সবসময় নিচে থাকবে
+  যেসব রাউটে প্যারামিটার বা আইডির ওপর বেস করে ডাটা রিড/ডিলেট করা হয় (যেমন: :id), সেগুলোকে সবসময় নির্দিষ্ট (Static) রাউটগুলোর নিচে রাখতে হবে।
+
+  রুল ৩: Specific Suffix Path যেকোনো জায়গায় কাজ করে
+  যদি প্যারামিটারের পর নির্দিষ্ট কোনো শব্দ থাকে (যেমন: :id/restore, :id/pin), সেগুলো নিয়ে সাধারণত কোনো কনফ্লিক্ট হয় না, কারণ ইউআরএলের শেষে অতিরিক্ত অংশ থাকে। তবে ভালো প্র্যাকটিস হলো এগুলোকেও সাধারণ :id রাউটের ওপরে রাখা।
+
+  ভিজ্যুয়াল স্ট্রাকচার
+  @Controller('notes')
+  export class NoteController {
+
+    // ==========================================
+    // ১. STATIC ROUTES (সবার ওপরে)
+    // ==========================================
+
+    @Get('trash')             // URL: GET /notes/trash
+    getTrashNotes() {}
+
+    @Delete('trash/empty')    // URL: DELETE /notes/trash/empty
+    emptyTrash() {}
+
+
+    // ==========================================
+    // ২. PARAMETER + SUFFIX ROUTES (মাঝখানে)
+    // ==========================================
+
+    @Patch(':id/restore')     // URL: PATCH /notes/123/restore
+    restoreNote() {}
+
+
+    // ==========================================
+    // ৩. GENERIC DYNAMIC ROUTES (সবার নিচে)
+    // ==========================================
+
+    @Get(':id')               // URL: GET /notes/123
+    findOne() {}
+
+    @Patch(':id')             // URL: PATCH /notes/123
+    update() {}
+
+    @Delete(':id')            // URL: DELETE /notes/123
+    remove() {}
+  }
+
+  */
