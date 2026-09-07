@@ -168,4 +168,55 @@ export class NoteService {
     });
   }
 
+
+  /**
+   * [ ট্র্যাশ থেকে নোট Restore করা]
+   */
+  async restoreNote(id: string, userId: string) {
+    const note = await this.prisma.note.findFirst({
+      where: { id, userId, isDeleted: true },
+    });
+
+    if (!note) {
+      throw new NotFoundException('Note not found in trash');
+    }
+
+    const restoredNote = await this.prisma.note.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+      },
+    });
+
+    await this.auditLogService.log(userId, {
+      action: 'NOTE_RESTORE',
+      details: { noteId: restoredNote.id },
+    });
+
+    return restoredNote;
+  }
+
+  /**
+   * [ ট্র্যাশ সম্পূর্ণ খালি করা (Empty Trash)]
+   */
+  async emptyTrash(userId: string) {
+    const deletedNotes = await this.prisma.note.deleteMany({
+      where: {
+        userId,
+        isDeleted: true,
+      },
+    });
+
+    await this.auditLogService.log(userId, {
+      action: 'TRASH_EMPTY',
+      details: { count: deletedNotes.count },
+    });
+
+    return {
+      message: 'Trash emptied successfully',
+      count: deletedNotes.count,
+    };
+  }
+
 }
