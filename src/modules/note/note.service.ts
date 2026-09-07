@@ -60,5 +60,42 @@ export class NoteService {
     });
   }
 
+  /**
+   * [৩. সিঙ্গেল নোট ভ্যালিডেশনসহ গেট করা]
+   * কী কাজ করে: অনারশিপ চেক করে নির্দিষ্ট নোটটি রিটার্ন করে।
+  */
+
+  async findOne(id: string, userId: string) {
+    const note = await this.prisma.note.findUnique({
+      where: { id },
+    });
+
+    if (!note) {
+      throw new NotFoundException('Note not found');
+    }
+
+    if (note.userId !== userId) {
+      throw new ForbiddenException('Access denied to this note');
+    }
+
+    return note;
+  }
+
+  /**
+   * [৪. নোট আপডেট করা]
+   * কী কাজ করে: নতুন এনক্রিপ্টেড ডাটা দিয়ে বিদ্যমান নোট আপডেট করে।
+  */
+
+  async update(id: string, userId: string, dto: UpdateNoteDto) {
+    await this.findOne(id, userId);
+
+    return this.prisma.note.update({
+      where: { id },
+      data: { ...dto },
+    });
+  }
+
+
+
 
 }
