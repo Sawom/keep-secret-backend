@@ -6,9 +6,10 @@ import { PrismaModule } from './modules/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { NotebookModule } from './modules/notebook/notebook.module';
 import { NoteModule } from './modules/note/note.module';
+import { AuditLogModule } from './modules/audit-log/audit-log.module';
 
 @Module({
-  imports: [CryptoModule, PrismaModule, AuthModule, NotebookModule, NoteModule],
+  imports: [CryptoModule, PrismaModule, AuthModule, NotebookModule, NoteModule, AuditLogModule],
   controllers: [AppController],
   providers: [AppService],
 })
