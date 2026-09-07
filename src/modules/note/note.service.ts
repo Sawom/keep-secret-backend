@@ -95,7 +95,35 @@ export class NoteService {
     });
   }
 
+  /**
+   * [৫. সফট ડিলিট / ট্র্যাশে পাঠানো (Soft Delete)]
+   * কী কাজ করে: নোট স্থায়ীভাবে ডিলিট না করে `isTrashed: true` সেট করে রিসাইকেল বিনের মতো রাখে।
+  */
 
+  async softDelete(id: string, userId: string) {
+    await this.findOne(id, userId);
 
+    return this.prisma.note.update({
+      where: { id },
+      data: {
+        isTrashed: true,
+        deletedAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * [৬. স্থায়ীভাবে নোট ডিলিট করা (Hard Delete)]
+   * কী কাজ করে: ডাটাবেস থেকে রিমুভ করে ফেলে।
+   */
+  async hardDelete(id: string, userId: string) {
+    await this.findOne(id, userId);
+
+    await this.prisma.note.delete({
+      where: { id },
+    });
+
+    return { message: 'Note permanently deleted' };
+  }
 
 }
