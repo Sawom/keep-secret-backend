@@ -1,24 +1,22 @@
 import { NestFactory } from '@nestjs/core';
+import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from '../src/app.module';
+import express from 'express';
 
-let app: any;
+const server = express();
 
-async function bootstrap() {
-  if (!app) {
-    app = await NestFactory.create(AppModule);
-    
+export const createNestServer = async (expressInstance: express.Express) => {
+    const app = await NestFactory.create(
+        AppModule,
+        new ExpressAdapter(expressInstance),
+    );
     app.enableCors({
-      origin: '*', // পরবর্তীতে ফ্রন্টএন্ড ডোমোেইন এখানে নির্দিষ্ট করা যাবে
-      credentials: true,
+        origin: '*',
+        credentials: true,
     });
-    
     await app.init();
-  }
-  return app;
-}
+};
 
-export default async function handler(req: any, res: any) {
-  const instance = await bootstrap();
-  const server = instance.getHttpAdapter().getInstance();
-  return server(req, res);
-}
+createNestServer(server);
+
+export default server;
