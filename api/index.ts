@@ -2,7 +2,6 @@ let cachedServer: any;
 
 async function bootstrap() {
     if (!cachedServer) {
-        // সব ইমপোর্ট ডাইনামিকালি ইমপোর্ট করা হলো যাতে ERR_REQUIRE_ESM না আসে
         const express = (await import('express')).default;
         const { ExpressAdapter } = await import('@nestjs/platform-express');
         const { NestFactory } = await import('@nestjs/core');
@@ -26,6 +25,15 @@ async function bootstrap() {
 }
 
 export default async function handler(req: any, res: any) {
-    const appServer = await bootstrap();
-    return appServer(req, res);
+    try {
+        const appServer = await bootstrap();
+        return appServer(req, res);
+    } catch (error: any) {
+        console.error('CRITICAL SERVERLESS ERROR:', error);
+        return res.status(500).json({
+            message: 'Internal Serverless Error',
+            error: error.message,
+            stack: error.stack,
+        });
+    }
 }
