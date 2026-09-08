@@ -2,11 +2,11 @@ let cachedServer: any;
 
 async function bootstrap() {
     if (!cachedServer) {
-        // ডাইনামিক ইমপোর্টের মাধ্যমে কমনজেএস এনভায়রনমেন্টে ইএসএম লোড করা হচ্ছে
-        const express = (await import('express')).default;
-        const { ExpressAdapter } = await import('@nestjs/platform-express');
-        const { NestFactory } = await import('@nestjs/core');
-        const { AppModule } = await import('../src/app.module.js');
+        // eval দিয়ে ডায়নামিক ইমপোর্ট করার কারণে Vercel বা TypeScript এটাকে কোনোভাবেই require()-এ রূপান্তর করতে পারবে না
+        const express = (await eval(`import('express')`)).default;
+        const { ExpressAdapter } = await eval(`import('@nestjs/platform-express')`);
+        const { NestFactory } = await eval(`import('@nestjs/core')`);
+        const { AppModule } = await eval(`import('../src/app.module.js')`);
 
         const server = express();
         const app = await NestFactory.create(
