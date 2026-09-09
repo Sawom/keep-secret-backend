@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
-import { AuditLogModule } from '../audit-log/audit-log.module';
-import { UserController } from './user.controller';
-import { UserService } from './user.service';
-import { PrismaModule } from '../prisma/prisma.module';
+import { AuditLogModule } from '../audit-log/audit-log.module.js';
+import { UserController } from './user.controller.js';
+import { UserService } from './user.service.js';
+import { PrismaModule } from '../prisma/prisma.module.js';
 
 @Module({
   imports: [

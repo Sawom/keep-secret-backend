@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+import { PrismaService } from './prisma.service.js';
 
 
 // @Global: এটি PrismaModule-কে পুরো অ্যাপ্লিকেশনের জন্য গ্লোবাল বানিয়ে দেয়।

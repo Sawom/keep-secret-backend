@@ -9,10 +9,10 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { NotebookService } from './notebook.service';
-import { CreateNotebookDto } from './dto/create-notebook.dto';
-import { UpdateNotebookDto } from './dto/update-notebook.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { NotebookService } from './notebook.service.js';
+import { CreateNotebookDto } from './dto/create-notebook.dto.js';
+import { UpdateNotebookDto } from './dto/update-notebook.dto.js';
 
 
 // Express-এর Request ইন্টারফেস এক্সটেন্ড করে লগড-ইন ইউজারের পে লোড সংজ্ঞায়িত করা

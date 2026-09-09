@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { AuditLogService } from './audit-log.service';
-import { AuditLogController } from './audit-log.controller';
-import { PrismaModule } from '../prisma/prisma.module';
+import { AuditLogService } from './audit-log.service.js';
+import { AuditLogController } from './audit-log.controller.js';
+import { PrismaModule } from '../prisma/prisma.module.js';
 import { PassportModule } from '@nestjs/passport';
 
 @Module({

@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { CreateNotebookDto } from './create-notebook.dto';
+import { CreateNotebookDto } from './create-notebook.dto.js';
 
 /**
  * নোটবুক আপডেটের সময় সব ফিল্ড পাঠানো বাধ্যতামূলক নয়।

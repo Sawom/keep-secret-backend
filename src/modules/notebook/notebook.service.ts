@@ -3,10 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateNotebookDto } from './dto/create-notebook.dto';
-import { UpdateNotebookDto } from './dto/update-notebook.dto';
-import { PrismaService } from '../prisma/prisma.service';
-import { AuditLogService } from '../audit-log/audit-log.service';
+import { CreateNotebookDto } from './dto/create-notebook.dto.js';
+import { UpdateNotebookDto } from './dto/update-notebook.dto.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { AuditLogService } from '../audit-log/audit-log.service.js';
 
 @Injectable()
 export class NotebookService {

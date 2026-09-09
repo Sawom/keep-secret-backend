@@ -1,12 +1,9 @@
 import { Module } from '@nestjs/common';
-import { NotebookService } from './notebook.service';
-import { NotebookController } from './notebook.controller';
-import { PrismaModule } from './../prisma/prisma.module';
+import { NotebookService } from './notebook.service.js';
+import { NotebookController } from './notebook.controller.js';
+import { PrismaModule } from './../prisma/prisma.module.js';
 import { PassportModule } from '@nestjs/passport';
-import { JwtStrategy } from '../auth/strategies/jwt.strategy';
-import { AuthService } from '../auth/auth.service';
-import { AuthController } from '../auth/auth.controller';
-import { AuditLogModule } from '../audit-log/audit-log.module';
+import { AuditLogModule } from '../audit-log/audit-log.module.js';
 
 /**
  * NotebookModule: নোটবুক সম্পর্কিত Controller, Service এবং Prisma Dependency একসাথে যুক্ত করে।

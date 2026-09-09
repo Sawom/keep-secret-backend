@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { NoteService } from './note.service';
-import { NoteController } from './note.controller';
-import { PrismaModule } from '../prisma/prisma.module';
+import { NoteService } from './note.service.js';
+import { NoteController } from './note.controller.js';
+import { PrismaModule } from '../prisma/prisma.module.js';
 import { PassportModule } from '@nestjs/passport';
-import { AuditLogModule } from '../audit-log/audit-log.module';
+import { AuditLogModule } from '../audit-log/audit-log.module.js';
 
 @Module({
   imports: [

@@ -7,9 +7,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { UpdateProfileDto } from './dto/update-profile.dto';
-import { UserService } from './user.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { UserService } from './user.service.js';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 
 interface AuthenticatedRequest extends Request {
   user: {
