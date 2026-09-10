@@ -189,7 +189,7 @@ export class AuthService {
             },
         });
 
-        const frontendUrl = process.env.FRONTEND_URL;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
         await transporter.sendMail({
