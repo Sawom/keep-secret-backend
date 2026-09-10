@@ -31,6 +31,23 @@ export class AuthController {
     }
 
     /**
+     * [POST] /auth/logout
+     */
+    @HttpCode(HttpStatus.OK)
+    @Post('logout')
+    async logout(@Res({ passthrough: true }) res: Response) {
+        const isProduction = process.env.NODE_ENV === 'production';
+
+        res.clearCookie('accessToken', {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+        });
+
+        return { message: 'Logged out successfully' };
+    }
+
+    /**
      * [POST] /auth/forgot-password
      */
     @HttpCode(HttpStatus.OK)
