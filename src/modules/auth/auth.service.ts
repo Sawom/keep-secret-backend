@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
+import * as nodemailer from 'nodemailer';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -166,11 +167,9 @@ export class AuthService {
 
         // ৩২ বাইটের সিকিউর র‍্যান্ডম হেক্স টোকেন তৈরি
         const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetTokenExpiry = new Date(Date.now() + 3600000); // ১ ঘণ্টা মেয়াদ
 
-        // টোকেনের মেয়াদ ১ ঘণ্টা (১ * ৬০ * ৬০ * ১০০০ মিলিডিসেকেন্ড) নির্ধারণ
-        const resetTokenExpiry = new Date(Date.now() + 3600000);
-
-        // ডাটাবেসে রিসেট টোকেন এবং এক্সপায়ারি টাইম আপডেট
+        // ডাটাবেসে টোকেন সেভ করা
         await this.prisma.user.update({
             where: { id: user.id },
             data: {
@@ -179,9 +178,85 @@ export class AuthService {
             },
         });
 
+        // ১. Nodemailer Transporter কনফিগারেশন
+        const transporter = nodemailer.createTransport({
+            host: process.env.MAIL_HOST || 'smtp.gmail.com',
+            port: Number(process.env.MAIL_PORT) || 587,
+            secure: false,
+            auth: {
+                user: process.env.MAIL_USER,
+                pass: process.env.MAIL_PASS,
+            },
+        });
+
+        const frontendUrl = process.env.FRONTEND_URL;
+        const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+        await transporter.sendMail({
+            from: `"KeepSecret Security" <${process.env.MAIL_USER}>`,
+            to: user.email,
+            subject: 'Reset Your Password | KeepSecret',
+            html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5; padding: 40px 0;">
+                    <tr>
+                        <td align="center">
+                            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); border: 1px solid #e4e4e7;">
+                                <!-- Header / Logo Area -->
+                                <tr>
+                                    <td style="padding: 30px 40px 20px 40px; text-align: left; background-color: #ffffff; border-bottom: 1px solid #f0f0f0;">
+                                        <h1 style="margin: 0; color: #4f46e5; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">KeepSecret.</h1>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Content Area -->
+                                <tr>
+                                    <td style="padding: 40px;">
+                                        <h2 style="margin: 0 0 16px 0; color: #18181b; font-size: 20px; font-weight: 600;">Password Reset Request</h2>
+                                        <p style="margin: 0 0 16px 0; color: #3f3f46; font-size: 15px; line-height: 24px;">Hello <b>${user.fullName}</b>,</p>
+                                        <p style="margin: 0 0 24px 0; color: #3f3f46; font-size: 15px; line-height: 24px;">We received a request to reset the password for your KeepSecret account. If you made this request, click the secure button below to choose a new password:</p>
+                                        
+                                        <!-- Button -->
+                                        <table border="0" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
+                                            <tr>
+                                                <td align="center" style="border-radius: 8px;" bgcolor="#4f46e5">
+                                                    <a href="${resetLink}" target="_blank" style="font-size: 15px; font-family: Helvetica, Arial, sans-serif; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; border: 1px solid #4f46e5; display: inline-block; font-weight: 600; background-color: #4f46e5;">Reset Password</a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <p style="margin: 0 0 16px 0; color: #71717a; font-size: 13px; line-height: 20px;">Or copy and paste this link into your browser:</p>
+                                        <p style="margin: 0 0 30px 0; word-break: break-all; color: #4f46e5; font-size: 13px; line-height: 18px;"><a href="${resetLink}" target="_blank" style="color: #4f46e5; text-decoration: underline;">${resetLink}</a></p>
+                                        
+                                        <hr style="border: none; border-top: 1px solid #f0f0f0; margin: 30px 0;">
+                                        
+                                        <p style="margin: 0; color: #a1a1aa; font-size: 13px; line-height: 20px;">This link is valid for <b>1 hour</b>. If you did not request a password reset, please safely ignore this email; your account remains secure.</p>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="padding: 20px 40px; background-color: #fafafa; text-align: center; border-top: 1px solid #f0f0f0;">
+                                        <p style="margin: 0; color: #a1a1aa; font-size: 12px;">© ${new Date().getFullYear()} KeepSecret. All rights reserved.</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+            `,
+        });
+
         return {
-            message: 'Password reset token generated successfully',
-            resetToken, // ইমেইল সার্ভিস যুক্ত না করা পর্যন্ত টেস্টিংয়ের জন্য রিটার্ন রাখা হলো
+            message: 'Password reset link has been sent to your email successfully',
         };
     }
 
