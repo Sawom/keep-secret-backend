@@ -2,16 +2,22 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { Request } from 'express';
 
 // PassportStrategy(Strategy) দিয়ে আমরা NestJS-কে বলছি এটি একটি JWT স্ট্র্যাটেজি
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
     constructor(private readonly prisma: PrismaService) {
         super({
-            // Request-এর Authorization Header থেকে 'Bearer <token>' আকারে টোকেন নেবে
-            jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-            ignoreExpiration: false, // টোকেনের মেয়াদ শেষ হলে অটোমেটিক রিজেক্ট করবে
-            secretOrKey: process.env.JWT_SECRET || 'super-secret-jwt-key', // সিক্রেট কী দিয়ে টোকেন ভ্যালিডেট করবে
+            // কুকি অথবা অথরাইজেশন হেডার—যেকোনো জায়গা থেকে টোকেন এক্সট্রাক্ট করবে
+            jwtFromRequest: ExtractJwt.fromExtractors([
+                (request: Request) => {
+                    return request?.cookies?.accessToken; // কুকি থেকে টোকেন নেওয়া
+                },
+                ExtractJwt.fromAuthHeaderAsBearerToken(), // ফলব্যাক হিসেবে হেডার চেক করা
+            ]),
+            ignoreExpiration: false,
+            secretOrKey: process.env.JWT_SECRET!, // always receive a string
         });
     }
 

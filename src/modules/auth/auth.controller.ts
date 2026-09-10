@@ -61,7 +61,18 @@ export class AuthController {
         const token = authResult.accessToken;
 
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+        const isProduction = process.env.NODE_ENV === 'production';
+
+        // HttpOnly কুকিতে টোকেন সেট করা (Vercel প্রোডাকশনের জন্য secure ও sameSite: 'none' জরুরি)
+        res.cookie('accessToken', token, {
+            httpOnly: true,
+            secure: isProduction, // প্রোডাকশনে (Vercel) true থাকবে
+            sameSite: isProduction ? 'none' : 'lax', // ক্রস-ডোমেইন কুকির জন্য 'none' লাগবে
+            maxAge: 7 * 24 * 60 * 60 * 1000, // ৭ দিন মেয়াদ
+        });
+
+        // URL-এ টোকেন পাঠানোর দরকার নেই, সিকিউরলি ড্যাশবোর্ডে রিডাইরেক্ট হবে
+        res.redirect(`${frontendUrl}/dashboard`);
     }
 
     /**
