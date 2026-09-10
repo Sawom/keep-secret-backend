@@ -6,7 +6,7 @@ import { AuthController } from './auth.controller.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { AuditLogModule } from '../audit-log/audit-log.module.js';
-
+import { GoogleStrategy } from './strategies/google.strategy.js';
 
 @Module({
   imports: [
@@ -14,13 +14,13 @@ import { AuditLogModule } from '../audit-log/audit-log.module.js';
     AuditLogModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'super-secret-jwt-key',
-      signOptions: { expiresIn: '7d' }, // টোকেন মেয়াদ ৭ দিন
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: process.env.JWT_EXPIRATION } as any,
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy], // JwtStrategy যুক্ত করা হলো
-  exports: [AuthService, JwtModule, PassportModule],
+  providers: [AuthService, JwtStrategy, GoogleStrategy],
+  exports: [AuthService, JwtModule, PassportModule, GoogleStrategy],
 })
 
 export class AuthModule { }

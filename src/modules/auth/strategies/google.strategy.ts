@@ -27,7 +27,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
             googleId: id,
         };
 
-        // তোমার AuthService-এর validateGoogleUser মেথড কল করা
+        // AuthService-এর validateGoogleUser মেথড কল
         const result = await this.authService.validateGoogleUser(googleProfile);
         done(null, result);
     }
