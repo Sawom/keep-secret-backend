@@ -92,13 +92,10 @@ export class AuthController {
     // ২. গুগল থেকে ব্যাক আসার পর কলব্যাক হ্যান্ডেল করার জন্য
     @Get('google/callback')
     @UseGuards(AuthGuard('google'))
-    async googleAuthRedirect(
-        @Req() req: any,
-        @Res() res: Response,
-    ) {
+    async googleAuthRedirect(@Req() req: any, @Res() res: Response) {
         const authResult = req.user;
-
         const token = authResult.accessToken;
+        const frontendUrl = process.env.FRONTEND_URL;
 
         res.cookie('accessToken', token, {
             httpOnly: true,
@@ -108,33 +105,56 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        const frontendUrl =
-            process.env.FRONTEND_URL;
-
-        return res.send(`
-        <!DOCTYPE html>
-        <html>
-            <head>
-                <title>Google Login Successful</title>
-            </head>
-
-            <body>
-                <script>
-                    window.opener.postMessage(
-                        {
-                            type: 'GOOGLE_LOGIN_SUCCESS'
-                        },
-                        '${frontendUrl}'
-                    );
-
-                    window.close();
-                </script>
-
-                <p>Login successful. You can close this window.</p>
-            </body>
-        </html>
-    `);
+        // সোজা ড্যাশবোর্ডে রিডাইরেক্ট
+        return res.redirect(`${frontendUrl}/dashboard`);
     }
+
+
+    // @Get('google/callback')
+    // @UseGuards(AuthGuard('google'))
+    // async googleAuthRedirect(
+    //     @Req() req: any,
+    //     @Res() res: Response,
+    // ) {
+    //     const authResult = req.user;
+
+    //     const token = authResult.accessToken;
+
+    //     res.cookie('accessToken', token, {
+    //         httpOnly: true,
+    //         secure: true,
+    //         sameSite: 'none',
+    //         path: '/',
+    //         maxAge: 7 * 24 * 60 * 60 * 1000,
+    //     });
+
+    //     const frontendUrl =
+    //         process.env.FRONTEND_URL;
+
+    //     return res.send(`
+    //     <!DOCTYPE html>
+    //     <html>
+    //         <head>
+    //             <title>Google Login Successful</title>
+    //         </head>
+
+    //         <body>
+    //             <script>
+    //                 window.opener.postMessage(
+    //                     {
+    //                         type: 'GOOGLE_LOGIN_SUCCESS'
+    //                     },
+    //                     '${frontendUrl}'
+    //                 );
+
+    //                 window.close();
+    //             </script>
+
+    //             <p>Login successful. You can close this window.</p>
+    //         </body>
+    //     </html>
+    // `);
+    // }
 
     /**
    * [GET] /auth/profile (Protected Route)
