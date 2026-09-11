@@ -108,11 +108,32 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        const frontendUrl = process.env.FRONTEND_URL;
+        const frontendUrl =
+            process.env.FRONTEND_URL;
 
-        return res.redirect(
-            `${frontendUrl}/dashboard`,
-        );
+        return res.send(`
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Google Login Successful</title>
+            </head>
+
+            <body>
+                <script>
+                    window.opener.postMessage(
+                        {
+                            type: 'GOOGLE_LOGIN_SUCCESS'
+                        },
+                        '${frontendUrl}'
+                    );
+
+                    window.close();
+                </script>
+
+                <p>Login successful. You can close this window.</p>
+            </body>
+        </html>
+    `);
     }
 
     /**
