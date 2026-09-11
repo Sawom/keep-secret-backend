@@ -26,8 +26,18 @@ export class AuthController {
      */
     @HttpCode(HttpStatus.OK)
     @Post('login')
-    async login(@Body() dto: LoginDto) {
-        return this.authService.login(dto);
+    async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+        const result = await this.authService.login(dto);
+
+        // এখানে টোকেন কুকিতে সেট করে দিতে হবে
+        res.cookie('accessToken', result.accessToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        return { message: 'Login successful', user: result.user };
     }
 
     /**
