@@ -37,7 +37,11 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        return { message: 'Login successful', user: result.user };
+        return {
+            message: 'Login successful',
+            user: result.user,
+            accessToken: result.accessToken
+        };
     }
 
     /**
