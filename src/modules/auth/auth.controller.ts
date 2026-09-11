@@ -92,16 +92,16 @@ export class AuthController {
         const token = authResult.accessToken;
         const frontendUrl = process.env.FRONTEND_URL;
 
-        // HttpOnly কুকিতে টোকেন সেট করা (Vercel প্রোডাকশনের জন্য secure ও sameSite: 'none' জরুরি)
+        // কুকি সেট করার চেষ্টা ব্যাকএন্ড করবে (যদি ব্রাউজার রাখে)
         res.cookie('accessToken', token, {
             httpOnly: true,
-            secure: true, // লাইভ সার্ভারে HTTPS এর জন্য অবশ্যই true থাকতে হবে
-            sameSite: 'none', // আলাদা ডোমেইন (frontend.vercel.app & backend.vercel.app) হলে 'none' দিতেই হবে
-            maxAge: 7 * 24 * 60 * 60 * 1000, // ৭ দিন
+            secure: true,
+            sameSite: 'none',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        // ২. ইউআরএলে টোকেন না পাঠিয়ে সরাসরি ড্যাশবোর্ডে পাঠিয়ে দেওয়া
-        return res.redirect(`${frontendUrl}/dashboard`);
+        // কিন্তু ব্যাকআপ হিসেবে ইউআরএলে টোকেন পাস করে দেবো, যাতে ফ্রন্টএন্ড নিশ্চিতভাবে ধরে নিতে পারে
+        return res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
     }
 
     /**
