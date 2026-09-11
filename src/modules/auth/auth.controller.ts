@@ -96,8 +96,8 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60 * 1000, // ৭ দিন
         });
 
-        // কুকি লস এড়াতে ফ্রন্টএন্ডের কলব্যাক পেজে টোকেনসহ রিডাইরেক্ট করা
-        res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+        // ২. ইউআরএলে টোকেন না পাঠিয়ে সরাসরি ড্যাশবোর্ডে পাঠিয়ে দেওয়া
+        return res.redirect(`${frontendUrl}/dashboard`);
     }
 
     /**
