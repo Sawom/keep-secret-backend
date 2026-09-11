@@ -76,16 +76,14 @@ export class AuthController {
     googleAuthRedirect(@Req() req: any, @Res() res: Response) {
         const authResult = req.user;
         const token = authResult.accessToken;
-
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        const isProduction = process.env.NODE_ENV === 'production';
+        const frontendUrl = process.env.FRONTEND_URL;
 
         // HttpOnly কুকিতে টোকেন সেট করা (Vercel প্রোডাকশনের জন্য secure ও sameSite: 'none' জরুরি)
         res.cookie('accessToken', token, {
             httpOnly: true,
-            secure: isProduction, // প্রোডাকশনে (Vercel) true থাকবে
-            sameSite: isProduction ? 'none' : 'lax', // ক্রস-ডোমেইন কুকির জন্য 'none' লাগবে
-            maxAge: 7 * 24 * 60 * 60 * 1000, // ৭ দিন মেয়াদ
+            secure: true, // লাইভ সার্ভারে HTTPS এর জন্য অবশ্যই true থাকতে হবে
+            sameSite: 'none', // আলাদা ডোমেইন (frontend.vercel.app & backend.vercel.app) হলে 'none' দিতেই হবে
+            maxAge: 7 * 24 * 60 * 60 * 1000, // ৭ দিন
         });
 
         // URL-এ টোকেন পাঠানোর দরকার নেই, সিকিউরলি ড্যাশবোর্ডে রিডাইরেক্ট হবে
