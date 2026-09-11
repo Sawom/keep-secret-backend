@@ -24,41 +24,46 @@ export class AuthController {
     /**
      * [POST] /auth/login
      */
-    @HttpCode(HttpStatus.OK)
     @Post('login')
-    async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    @HttpCode(HttpStatus.OK)
+    async login(
+        @Body() dto: LoginDto,
+        @Res({ passthrough: true }) res: Response,
+    ) {
         const result = await this.authService.login(dto);
 
-        // এখানে টোকেন কুকিতে সেট করে দিতে হবে
         res.cookie('accessToken', result.accessToken, {
             httpOnly: true,
             secure: true,
             sameSite: 'none',
+            path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
         return {
             message: 'Login successful',
             user: result.user,
-            accessToken: result.accessToken
         };
     }
 
     /**
      * [POST] /auth/logout
      */
-    @HttpCode(HttpStatus.OK)
     @Post('logout')
-    async logout(@Res({ passthrough: true }) res: Response) {
-        const isProduction = process.env.NODE_ENV === 'production';
-
+    @HttpCode(HttpStatus.OK)
+    async logout(
+        @Res({ passthrough: true }) res: Response,
+    ) {
         res.clearCookie('accessToken', {
             httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? 'none' : 'lax',
+            secure: true,
+            sameSite: 'none',
+            path: '/',
         });
 
-        return { message: 'Logged out successfully' };
+        return {
+            message: 'Logged out successfully',
+        };
     }
 
     /**
@@ -87,21 +92,27 @@ export class AuthController {
     // ২. গুগল থেকে ব্যাক আসার পর কলব্যাক হ্যান্ডেল করার জন্য
     @Get('google/callback')
     @UseGuards(AuthGuard('google'))
-    googleAuthRedirect(@Req() req: any, @Res() res: Response) {
+    async googleAuthRedirect(
+        @Req() req: any,
+        @Res() res: Response,
+    ) {
         const authResult = req.user;
-        const token = authResult.accessToken;
-        const frontendUrl = process.env.FRONTEND_URL;
 
-        // কুকি সেট করার চেষ্টা ব্যাকএন্ড করবে (যদি ব্রাউজার রাখে)
+        const token = authResult.accessToken;
+
         res.cookie('accessToken', token, {
             httpOnly: true,
             secure: true,
             sameSite: 'none',
+            path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        // কিন্তু ব্যাকআপ হিসেবে ইউআরএলে টোকেন পাস করে দেবো, যাতে ফ্রন্টএন্ড নিশ্চিতভাবে ধরে নিতে পারে
-        return res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+        const frontendUrl = process.env.FRONTEND_URL;
+
+        return res.redirect(
+            `${frontendUrl}/dashboard`,
+        );
     }
 
     /**

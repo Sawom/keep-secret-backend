@@ -35,21 +35,30 @@ export class AuthService {
         * [১. ইউজার রেজিস্ট্রেশন]
         * পাসওয়ার্ড ম্যাচ ভ্যালিডেশন, ডুওপ্লিকেট ইমেইল চেক এবং bcrypt দিয়ে হ্যাশ করে সেভ করে।
     */
-
     async register(dto: RegisterDto) {
         if (dto.password !== dto.confirmPassword) {
-            throw new BadRequestException('Passwords do not match');
+            throw new BadRequestException(
+                'Passwords do not match',
+            );
         }
 
-        const existingUser = await this.prisma.user.findUnique({
-            where: { email: dto.email },
-        });
+        const existingUser =
+            await this.prisma.user.findUnique({
+                where: {
+                    email: dto.email,
+                },
+            });
 
         if (existingUser) {
-            throw new BadRequestException('User with this email already exists');
+            throw new BadRequestException(
+                'User with this email already exists',
+            );
         }
 
-        const hashedPassword = await bcrypt.hash(dto.password, 10);
+        const hashedPassword = await bcrypt.hash(
+            dto.password,
+            10,
+        );
 
         const user = await this.prisma.user.create({
             data: {
@@ -59,18 +68,19 @@ export class AuthService {
             },
         });
 
-        const token = this.generateToken(user.id, user.email);
         return {
             message: 'Registration successful',
+
             user: {
                 id: user.id,
                 name: user.fullName,
                 email: user.email,
                 role: user.role,
             },
-            accessToken: token,
         };
     }
+
+
 
     /**
         * [২. ইমেইল ও পাসওয়ার্ড লগইন]
@@ -78,21 +88,33 @@ export class AuthService {
     */
     async login(dto: LoginDto) {
         const user = await this.prisma.user.findUnique({
-            where: { email: dto.email },
+            where: {
+                email: dto.email,
+            },
         });
 
         if (!user || !user.passwordHash) {
-            throw new UnauthorizedException('Invalid email or password');
+            throw new UnauthorizedException(
+                'Invalid email or password',
+            );
         }
 
-        const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+        const isPasswordValid = await bcrypt.compare(
+            dto.password,
+            user.passwordHash,
+        );
+
         if (!isPasswordValid) {
-            throw new UnauthorizedException('Invalid email or password');
+            throw new UnauthorizedException(
+                'Invalid email or password',
+            );
         }
 
-        const token = this.generateToken(user.id, user.email);
+        const token = this.generateToken(
+            user.id,
+            user.email,
+        );
 
-        // [Audit Log Trigger]: সফল লগইনের পর লগ সেভ 
         await this.auditLogService.log(user.id, {
             action: 'USER_LOGIN',
             details: {
@@ -103,12 +125,14 @@ export class AuthService {
 
         return {
             message: 'Login successful',
+
             user: {
                 id: user.id,
                 name: user.fullName,
                 email: user.email,
                 role: user.role,
             },
+
             accessToken: token,
         };
     }
