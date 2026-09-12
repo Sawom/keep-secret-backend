@@ -134,7 +134,7 @@ export class AuthController {
 
         const frontendUrl = process.env.FRONTEND_URL;
         // এক্সেস টোকেনটি ইউআরএল প্যারামিটার হিসেবে ফ্রন্টএন্ডে পাঠানো হচ্ছে, যা ক্যাচ করে Zustand এ সেট হবে
-        return res.redirect(`${frontendUrl}/auth/callback?token=${authResult.accessToken}`);
+        return res.redirect(`${frontendUrl}/callback?token=${authResult.accessToken}`);
     }
 
     /**
