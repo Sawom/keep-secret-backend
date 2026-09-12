@@ -11,6 +11,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
             callbackURL: process.env.GOOGLE_CALLBACK_URL,
             scope: ['email', 'profile'],
+            // এই অপশনটির মাধ্যমে ব্রাউজারে অ্যাকাউন্ট সংখ্যা যাই হোক না কেন, অ্যাকাউন্ট সিলেকশন উইন্ডো আসবেই
             prompt: 'select_account',
         } as any);
     }
@@ -28,7 +29,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
             googleId: id,
         };
 
-        // AuthService-এর validateGoogleUser মেথড কল
         const result = await this.authService.validateGoogleUser(googleProfile);
         done(null, result);
     }
