@@ -32,16 +32,38 @@ export class AuthController {
     ) {
         const result = await this.authService.login(dto);
 
-        res.cookie('accessToken', result.accessToken, {
+        // রিফ্রেশ টোকেন HttpOnly কুকি হিসেবে সেট করা (৭ দিন মেয়াদ)
+        res.cookie('refreshToken', result.refreshToken, {
             httpOnly: true,
-            secure: true,
-            sameSite: 'none',
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
+        // এক্সেস টোকেন এবং ইউজার ডাটা বডিতে পাঠানো (ফ্রন্টএন্ডের স্টেট বা Zustand-এ রাখার জন্য)
         return {
             message: 'Login successful',
+            accessToken: result.accessToken,
+            user: result.user,
+        };
+    }
+
+    /**
+     * [POST] /auth/refresh - সাইলেন্ট টোকেন রিফ্রেশ রুট
+     */
+    @Post('refresh')
+    @HttpCode(HttpStatus.OK)
+    async refresh(
+        @Req() req: any,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const incomingRefreshToken = req.cookies?.refreshToken;
+        const result = await this.authService.refreshTokens(incomingRefreshToken);
+
+        return {
+            message: 'Token refreshed successfully',
+            accessToken: result.accessToken,
             user: result.user,
         };
     }
@@ -49,21 +71,23 @@ export class AuthController {
     /**
      * [POST] /auth/logout
      */
+    @UseGuards(JwtAuthGuard)
     @Post('logout')
     @HttpCode(HttpStatus.OK)
     async logout(
+        @GetUser() user: { id: string },
         @Res({ passthrough: true }) res: Response,
     ) {
-        res.clearCookie('accessToken', {
+        await this.authService.logout(user.id);
+
+        res.clearCookie('refreshToken', {
             httpOnly: true,
-            secure: true,
-            sameSite: 'none',
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             path: '/',
         });
 
-        return {
-            message: 'Logged out successfully',
-        };
+        return { message: 'Logged out successfully' };
     }
 
     /**
@@ -85,6 +109,7 @@ export class AuthController {
     }
 
     // ১. গুগল লগইন পেজে রিডাইরেক্ট করার জন্য
+
     @Get('google')
     @UseGuards(AuthGuard('google'))
     googleAuth() { }
@@ -98,22 +123,18 @@ export class AuthController {
     ) {
         const authResult = req.user;
 
-        const token = authResult.accessToken;
-
-        res.cookie('accessToken', token, {
+        // রিফ্রেশ টোকেন কুকি সেট করা
+        res.cookie('refreshToken', authResult.refreshToken, {
             httpOnly: true,
-            secure: true,
-            sameSite: 'none',
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        const frontendUrl =
-            process.env.FRONTEND_URL;
-
-        return res.redirect(
-            `${frontendUrl}/dashboard`,
-        );
+        const frontendUrl = process.env.FRONTEND_URL;
+        // এক্সেস টোকেনটি ইউআরএল প্যারামিটার হিসেবে ফ্রন্টএন্ডে পাঠানো হচ্ছে, যা ক্যাচ করে Zustand এ সেট হবে
+        return res.redirect(`${frontendUrl}/auth/callback?token=${authResult.accessToken}`);
     }
 
     /**
@@ -123,7 +144,6 @@ export class AuthController {
     @UseGuards(JwtAuthGuard)
     @Get('profile')
     getProfile(@GetUser() user: { id: string; email: string; name: string }) {
-        // JwtStrategy-র validate() থেকে আসা ইউজারের ডাটা req.user-এ পাওয়া যাবে
         return {
             message: 'Profile retrieved successfully',
             user,
