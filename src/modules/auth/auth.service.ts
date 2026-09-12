@@ -24,11 +24,19 @@ export class AuthService {
     ) { }
 
     /**
-        * [হেলপার ফাংশন: JWT Access Token জেনারেট করা]
-    */
-    private generateToken(userId: string, email: string): string {
+      * [হেলপার: এক্সেস টোকেন জেনারেট - মেয়াদ ১০ মিনিট]
+      */
+    private generateAccessToken(userId: string, email: string): string {
         const payload = { sub: userId, email };
-        return this.jwtService.sign(payload);
+        return this.jwtService.sign(payload, { expiresIn: '10m' });
+    }
+
+    /**
+     * [হেলপার: রিফ্রেশ টোকেন জেনারেট - মেয়াদ ৭ দিন]
+     */
+    private generateRefreshToken(userId: string, email: string): string {
+        const payload = { sub: userId, email };
+        return this.jwtService.sign(payload, { expiresIn: '7d' });
     }
 
     /**
@@ -37,28 +45,18 @@ export class AuthService {
     */
     async register(dto: RegisterDto) {
         if (dto.password !== dto.confirmPassword) {
-            throw new BadRequestException(
-                'Passwords do not match',
-            );
+            throw new BadRequestException('Passwords do not match');
         }
 
-        const existingUser =
-            await this.prisma.user.findUnique({
-                where: {
-                    email: dto.email,
-                },
-            });
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email: dto.email },
+        });
 
         if (existingUser) {
-            throw new BadRequestException(
-                'User with this email already exists',
-            );
+            throw new BadRequestException('User with this email already exists');
         }
 
-        const hashedPassword = await bcrypt.hash(
-            dto.password,
-            10,
-        );
+        const hashedPassword = await bcrypt.hash(dto.password, 10);
 
         const user = await this.prisma.user.create({
             data: {
@@ -70,7 +68,6 @@ export class AuthService {
 
         return {
             message: 'Registration successful',
-
             user: {
                 id: user.id,
                 name: user.fullName,
@@ -86,52 +83,44 @@ export class AuthService {
     */
     async login(dto: LoginDto) {
         const user = await this.prisma.user.findUnique({
-            where: {
-                email: dto.email,
-            },
+            where: { email: dto.email },
         });
 
         if (!user || !user.passwordHash) {
-            throw new UnauthorizedException(
-                'Invalid email or password',
-            );
+            throw new UnauthorizedException('Invalid email or password');
         }
 
-        const isPasswordValid = await bcrypt.compare(
-            dto.password,
-            user.passwordHash,
-        );
-
+        const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
         if (!isPasswordValid) {
-            throw new UnauthorizedException(
-                'Invalid email or password',
-            );
+            throw new UnauthorizedException('Invalid email or password');
         }
 
-        const token = this.generateToken(
-            user.id,
-            user.email,
-        );
+        // ডুয়াল টোকেন তৈরি
+        const accessToken = this.generateAccessToken(user.id, user.email);
+        const refreshToken = this.generateRefreshToken(user.id, user.email);
+
+        // রিফ্রেশ টোকেন হ্যাশ করে ডাটাবেজে সংরক্ষণ (সিকিউরিটির জন্য)
+        const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { hashedRefreshToken },
+        });
 
         await this.auditLogService.log(user.id, {
             action: 'USER_LOGIN',
-            details: {
-                message: `User ${user.email} successfully logged in`,
-                email: user.email,
-            },
+            details: { message: `User ${user.email} successfully logged in`, email: user.email },
         });
 
         return {
             message: 'Login successful',
-
             user: {
                 id: user.id,
                 name: user.fullName,
                 email: user.email,
                 role: user.role,
             },
-
-            accessToken: token,
+            accessToken,
+            refreshToken, // কন্ট্রোলারে গিয়ে এটি HttpOnly কুকি হিসেবে সেট হবে
         };
     }
 
@@ -160,7 +149,15 @@ export class AuthService {
             });
         }
 
-        const token = this.generateToken(user.id, user.email);
+        const accessToken = this.generateAccessToken(user.id, user.email);
+        const refreshToken = this.generateRefreshToken(user.id, user.email);
+
+        const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { hashedRefreshToken },
+        });
+
         return {
             message: 'Google login successful',
             user: {
@@ -169,13 +166,67 @@ export class AuthService {
                 email: user.email,
                 role: user.role,
             },
-            accessToken: token,
+            accessToken,
+            refreshToken,
         };
     }
 
     /**
-     * [৪. পাসওয়ার্ড রিসেট টোকেন তৈরি]
-     * ভুলে যাওয়া পাসওয়ার্ডের জন্য র‍্যান্ডম সিকিউর রিসেট টোকেন জেনারেট করা।
+     * [৪. রিফ্রেশ টোকেন দিয়ে নতুন এক্সেস টোকেন নেওয়া]
+     */
+    async refreshTokens(incomingRefreshToken: string) {
+        if (!incomingRefreshToken) {
+            throw new UnauthorizedException('Refresh token not found');
+        }
+
+        try {
+            const payload = this.jwtService.verify(incomingRefreshToken);
+            const user = await this.prisma.user.findUnique({
+                where: { id: payload.sub },
+            });
+
+            if (!user || !user.hashedRefreshToken) {
+                throw new UnauthorizedException('Access Denied');
+            }
+
+            const refreshTokenMatches = await bcrypt.compare(incomingRefreshToken, user.hashedRefreshToken);
+            if (!refreshTokenMatches) {
+                throw new UnauthorizedException('Access Denied');
+            }
+
+            // নতুন এক্সেস টোকেন জেনারেট
+            const newAccessToken = this.generateAccessToken(user.id, user.email);
+
+            return {
+                accessToken: newAccessToken,
+                user: {
+                    id: user.id,
+                    name: user.fullName,
+                    email: user.email,
+                    role: user.role,
+                },
+            };
+        } catch (error) {
+            throw new UnauthorizedException('Invalid or expired refresh token');
+        }
+    }
+
+    /**
+     * [৫. লগআউট হ্যান্ডেল - ডাটাবেজ থেকে রিফ্রেশ টোকেন মুছে ফেলা]
+     */
+    async logout(userId: string) {
+        if (userId) {
+            await this.prisma.user.update({
+                where: { id: userId },
+                data: { hashedRefreshToken: null },
+            });
+        }
+        return { message: 'Logged out successfully' };
+    }
+
+
+    /**
+     * পাসওয়ার্ড রিসেট টোকেন তৈরি ও ইমেইল পাঠানো
     */
 
     async forgotPassword(dto: ForgotPasswordDto) {
@@ -187,20 +238,14 @@ export class AuthService {
             throw new NotFoundException('No account found with this email');
         }
 
-        // ৩২ বাইটের সিকিউর র‍্যান্ডম হেক্স টোকেন তৈরি
         const resetToken = crypto.randomBytes(32).toString('hex');
-        const resetTokenExpiry = new Date(Date.now() + 3600000); // ১ ঘণ্টা মেয়াদ
+        const resetTokenExpiry = new Date(Date.now() + 3600000); // ১ ঘণ্টা
 
-        // ডাটাবেসে টোকেন সেভ করা
         await this.prisma.user.update({
             where: { id: user.id },
-            data: {
-                resetToken,
-                resetTokenExpiry,
-            },
+            data: { resetToken, resetTokenExpiry },
         });
 
-        // ১. Nodemailer Transporter কনফিগারেশন
         const transporter = nodemailer.createTransport({
             host: process.env.MAIL_HOST || 'smtp.gmail.com',
             port: Number(process.env.MAIL_PORT) || 587,
@@ -249,6 +294,7 @@ export class AuthService {
                                             <tr>
                                                 <td align="center" style="border-radius: 8px;" bgcolor="#4f46e5">
                                                     <a href="${resetLink}" target="_blank" style="font-size: 15px; font-family: Helvetica, Arial, sans-serif; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; border: 1px solid #4f46e5; display: inline-block; font-weight: 600; background-color: #4f46e5;">Reset Password</a>
+                                                    <p> Valid for 1 hour. </p>
                                                 </td>
                                             </tr>
                                         </table>
@@ -274,25 +320,21 @@ export class AuthService {
                 </table>
             </body>
             </html>
+            
             `,
         });
 
-        return {
-            message: 'Password reset link has been sent to your email successfully',
-        };
+        return { message: 'Password reset link has been sent to your email successfully' };
     }
 
     /**
         * [৫. নতুন পাসওয়ার্ড সেভ]
    */
     async resetPassword(dto: ResetPasswordDto) {
-        // ১. টোকেন দিয়ে ইউজার খোঁজা এবং টোকেনের মেয়াদ চেক করা
         const user = await this.prisma.user.findFirst({
             where: {
                 resetToken: dto.token,
-                resetTokenExpiry: {
-                    gt: new Date(), // টোকেনের মেয়াদ বর্তমান সময়ের চেয়ে বেশি হতে হবে
-                },
+                resetTokenExpiry: { gt: new Date() },
             },
         });
 
@@ -300,22 +342,19 @@ export class AuthService {
             throw new BadRequestException('Invalid or expired reset token');
         }
 
-        // ২. নতুন পাসওয়ার্ড হ্যাশ করা
         const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
 
-        // ৩. ডাটাবেসে নতুন পাসওয়ার্ড আপডেট করা এবং রিসেট টোকেন মুছে ফেলা
         await this.prisma.user.update({
             where: { id: user.id },
             data: {
                 passwordHash: hashedPassword,
-                resetToken: null,       // টোকেন একবার ব্যবহার হয়ে গেলে মুছে দেওয়া হলো
+                resetToken: null,
                 resetTokenExpiry: null,
+                hashedRefreshToken: null, // সিকিউরিটির জন্য সব সেশন ড্রপ করা হলো
             },
         });
 
-        return {
-            message: 'Password has been reset successfully',
-        };
+        return { message: 'Password has been reset successfully' };
     }
 
 }

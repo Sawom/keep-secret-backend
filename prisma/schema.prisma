@@ -21,6 +21,7 @@ model User {
   googleId      String?    @unique
   masterPinHash String?
 
+  hashedRefreshToken String?
   resetToken       String?
   resetTokenExpiry DateTime?
 
