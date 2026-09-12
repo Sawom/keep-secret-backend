@@ -7,6 +7,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
+import * as passport from 'passport';
+import { GoogleOAuthGuard } from './guards/googleOAuthGuard.js';
 
 // Base Route: /auth
 @Controller('auth')
@@ -111,8 +113,8 @@ export class AuthController {
     // ১. গুগল লগইন পেজে রিডাইরেক্ট করার জন্য
 
     @Get('google')
-    @UseGuards(AuthGuard('google'))
-    googleAuth() { }
+    @UseGuards(GoogleOAuthGuard)
+    async googleAuth(@Req() req: any, @Res() res: any) { }
 
     // ২. গুগল থেকে ব্যাক আসার পর কলব্যাক হ্যান্ডেল করার জন্য
     @Get('google/callback')
