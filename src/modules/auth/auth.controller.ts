@@ -111,14 +111,8 @@ export class AuthController {
     // ১. গুগল লগইন পেজে রিডাইরেক্ট করার জন্য
 
     @Get('google')
-    async googleAuth(@Req() req: any, @Res() res: any) {
-        // সরাসরি Passport এর মাধ্যমে প্রম্পট সিলেক্ট অ্যাকাউন্ট ট্রিগার করা
-        const passport = require('passport');
-        return passport.authenticate('google', {
-            scope: ['email', 'profile'],
-            prompt: 'select_account', // এটি থাকলেই বারবার একাধিক জিমেইলের পপআপ দেখাবে!
-        })(req, res);
-    }
+    @UseGuards(AuthGuard('google'))
+    googleAuth() { }
 
     // ২. গুগল থেকে ব্যাক আসার পর কলব্যাক হ্যান্ডেল করার জন্য
     @Get('google/callback')
