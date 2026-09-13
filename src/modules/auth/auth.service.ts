@@ -260,9 +260,10 @@ export class AuthService {
         const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
         await transporter.sendMail({
-            from: `"KeepSecret Security" <${process.env.MAIL_USER}>`,
+            from: `"KeepSecret Security" <no-reply@yourdomain.com>`, 
             to: user.email,
-            subject: 'Reset Your Password | KeepSecret',
+            subject: 'Password Reset Instructions', 
+            text: `Hello ${user.fullName}, You requested a password reset. Click here: ${resetLink} (Valid for 1 hour)`, // প্লেন টেক্সট ভার্সন রাখা স্প্যাম এড়াতে অত্যন্ত জরুরি!
             html: `
             <!DOCTYPE html>
             <html>
@@ -287,14 +288,13 @@ export class AuthService {
                                     <td style="padding: 40px;">
                                         <h2 style="margin: 0 0 16px 0; color: #18181b; font-size: 20px; font-weight: 600;">Password Reset Request</h2>
                                         <p style="margin: 0 0 16px 0; color: #3f3f46; font-size: 15px; line-height: 24px;">Hello <b>${user.fullName}</b>,</p>
-                                        <p style="margin: 0 0 24px 0; color: #3f3f46; font-size: 15px; line-height: 24px;">We received a request to reset the password for your KeepSecret account. If you made this request, click the secure button below to choose a new password:</p>
+                                        <p style="margin: 0 0 24px 0; color: #3f3f46; font-size: 15px; line-height: 24px;">We received a request to reset the password for your KeepSecret account. Click the button below to proceed:</p>
                                         
                                         <!-- Button -->
                                         <table border="0" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
                                             <tr>
                                                 <td align="center" style="border-radius: 8px;" bgcolor="#4f46e5">
                                                     <a href="${resetLink}" target="_blank" style="font-size: 15px; font-family: Helvetica, Arial, sans-serif; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; border: 1px solid #4f46e5; display: inline-block; font-weight: 600; background-color: #4f46e5;">Reset Password</a>
-                                                    <p> Valid for 1 hour. </p>
                                                 </td>
                                             </tr>
                                         </table>
@@ -304,7 +304,7 @@ export class AuthService {
                                         
                                         <hr style="border: none; border-top: 1px solid #f0f0f0; margin: 30px 0;">
                                         
-                                        <p style="margin: 0; color: #a1a1aa; font-size: 13px; line-height: 20px;">This link is valid for <b>1 hour</b>. If you did not request a password reset, please safely ignore this email; your account remains secure.</p>
+                                        <p style="margin: 0; color: #a1a1aa; font-size: 13px; line-height: 20px;">This link is valid for <b>1 hour</b>. If you did not request this, please safely ignore this email.</p>
                                     </td>
                                 </tr>
                                 
@@ -320,7 +320,6 @@ export class AuthService {
                 </table>
             </body>
             </html>
-            
             `,
         });
 
