@@ -17,12 +17,32 @@ export class NoteService {
     private readonly cryptoService: CryptoService,
   ) { }
 
+
   /**
-     * [১. নতুন এনক্রিপ্টেড নোট তৈরি]
-     * কী কাজ করে: ফ্রন্টএন্ড থেকে প্রাপ্ত এনক্রিপ্টেড নোট এবং মেটাডাটা (iv, authTag) সেভ করে।
-     * কীভাবে কাজ করে:
-     * - নোটবুক আইডি দেওয়া থাকলে সেটি ইউজারের নিজের নোটবুক কি না ভ্যালিডেট করে।
-     * - ডাটাবেসে `isArchived: false` ও `isDeleted: false` অবস্থায় সেভ করে।
+   * নোট ডিক্রিপ্ট করার জন্য helper function
+   */
+  private decryptNote(note: any) {
+    if (!note) return note;
+    try {
+      return {
+        ...note,
+        title: note.title && note.iv && note.authTag
+          ? this.cryptoService.decrypt(note.title, note.iv, note.authTag)
+          : note.title,
+        content: note.content && note.iv && note.authTag
+          ? this.cryptoService.decrypt(note.content, note.iv, note.authTag)
+          : note.content,
+      };
+    } catch (error) {
+      // পুরোনো বা প্লেইন টেক্সট ডাটা হলে যাতে এরর না খায়
+      return note;
+    }
+  }
+
+  /**
+    [১. নতুন এনক্রিপ্টেড নোট তৈরি]
+    ফ্রন্টএন্ড থেকে পাঠানো প্লেইন টাইটেল এবং কন্টেন্টকে ব্যাকএন্ডে স্বয়ংক্রিয়ভাবে এনক্রিপ্ট করে
+    iv এবং authTag সহ ডাটাবেসে সেভ করা হয়েছে এবং রিটার্ন করার সময় ডিক্রিপ্ট করা হয়েছে।
   */
 
   async create(userId: string, dto: CreateNoteDto) {
@@ -36,12 +56,16 @@ export class NoteService {
       }
     }
 
+    // ব্যাকএন্ডে টাইটেল ও কন্টেন্ট এনক্রিপ্ট করে নেওয়া হচ্ছে
+    const encryptedTitle = this.cryptoService.encrypt(dto.title);
+    const encryptedContent = dto.content ? this.cryptoService.encrypt(dto.content) : null;
+
     const newNote = await this.prisma.note.create({
       data: {
-        title: dto.title,
-        content: dto.content,
-        iv: dto.iv,
-        authTag: dto.authTag,
+        title: encryptedTitle.encryptedData,
+        content: encryptedContent ? encryptedContent.encryptedData : '',
+        iv: encryptedTitle.iv, // ইউনিক IV
+        authTag: encryptedTitle.authTag, // Auth Tag
         color: dto.color ?? '#FFFFFF',
         isPinned: dto.isPinned ?? false,
         notebookId: dto.notebookId ?? null,
@@ -49,13 +73,14 @@ export class NoteService {
       },
     });
 
-    //  [Audit Log Trigger]: নোট তৈরি সফল হলে অডিট লগ সেভ হবে
+    // [Audit Log Trigger]: নোট তৈরি সফল হলে অডিট লগ সেভ হবে
     await this.auditLogService.log(userId, {
       action: 'NOTE_CREATE',
-      details: { noteId: newNote.id, title: newNote.title }, // details in json format
+      details: { noteId: newNote.id, title: dto.title }, // লগে আসল প্লেইন টাইটেল রাখা যেতে পারে
     });
 
-    return newNote;
+    // ফ্রন্টএন্ডে রেসপন্স পাঠানোর সময় ডিক্রিপ্ট করে পাঠানো হচ্ছে
+    return this.decryptNote(newNote);
   }
 
   /**
