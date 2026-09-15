@@ -67,10 +67,12 @@ model Note {
   content        String    @db.Text     // AES-256-GCM Encrypted Title (Base64)
   
 
-  // Encryption Metadata
-  iv             String                        // Initialization Vector
-  authTag        String                       // Authentication Tag
-  isEncrypted    Boolean   @default(true)    // To keep track of whether data is encrypted
+  // Encryption Metadata (আলাদা করা হলো যাতে টাইটেল ও কন্টেন্ট ঠিকমতো ডিক্রিপ্ট হতে পারে)
+  titleIv               String?                 // টাইটেলের Initialization Vector
+  titleAuthTag          String?                 // টাইটেলের Authentication Tag
+  contentIv             String?                 // কন্টেন্টের Initialization Vector
+  contentAuthTag        String?                 // কন্টেন্টের Authentication Tag
+  isEncrypted           Boolean   @default(true)
 
   // UX Features
   isPinned       Boolean   @default(false)             // The pinned note will remain at the top.

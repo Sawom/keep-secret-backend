@@ -16,13 +16,13 @@ export class CreateNoteDto {
 
     // AES-256-GCM এর Initialization Vector (must)
     @IsString()
-    @IsNotEmpty()
-    iv: string;
+    @IsOptional()
+    iv?: string;
 
     // ডাটা ট্যাম্পারিং রোধ করার Authentication Tag (must)
     @IsString()
-    @IsNotEmpty()
-    authTag: string;
+    @IsOptional()
+    authTag?: string;
 
     // কাস্টম ব্যাকগ্রাউন্ড কালার (optional)
     @IsString()
