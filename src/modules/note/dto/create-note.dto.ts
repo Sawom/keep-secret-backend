@@ -4,25 +4,15 @@ import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
  * ক্লায়েন্ট থেকে এনক্রিপ্টেড নোট তৈরির জন্য ডাটা ভ্যালিডেশন DTO।
  */
 export class CreateNoteDto {
-    // এনক্রিপ্ট করা নোটের টাইটেল (must)
+    // নোটের টাইটেল (must)
     @IsString()
     @IsNotEmpty()
     title: string;
 
-    // এনক্রিপ্ট করা আসল কনটেন্ট (must)
+    // নোটের আসল কনটেন্ট (must)
     @IsString()
     @IsNotEmpty()
     content: string;
-
-    // AES-256-GCM এর Initialization Vector (must)
-    @IsString()
-    @IsOptional()
-    iv?: string;
-
-    // ডাটা ট্যাম্পারিং রোধ করার Authentication Tag (must)
-    @IsString()
-    @IsOptional()
-    authTag?: string;
 
     // কাস্টম ব্যাকগ্রাউন্ড কালার (optional)
     @IsString()
