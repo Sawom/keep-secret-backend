@@ -7,12 +7,14 @@ import { CreateNoteDto } from './dto/create-note.dto.js';
 import { UpdateNoteDto } from './dto/update-note.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditLogService } from '../audit-log/audit-log.service.js';
+import { CryptoService } from '../crypto/crypto.service.js';
 
 @Injectable()
 export class NoteService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogService: AuditLogService,  // AuditLog inject
+    private readonly cryptoService: CryptoService,
   ) { }
 
   /**

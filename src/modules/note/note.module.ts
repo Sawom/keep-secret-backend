@@ -4,6 +4,7 @@ import { NoteController } from './note.controller.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PassportModule } from '@nestjs/passport';
 import { AuditLogModule } from '../audit-log/audit-log.module.js';
+import { CryptoService } from '../crypto/crypto.service.js';
 
 @Module({
   imports: [
@@ -12,7 +13,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module.js';
     PassportModule.register({ defaultStrategy: 'jwt' }),
   ],
   controllers: [NoteController],
-  providers: [NoteService],
+  providers: [NoteService, CryptoService],
   exports: [NoteService],
 })
 
