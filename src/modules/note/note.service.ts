@@ -105,7 +105,7 @@ export class NoteService {
 
   /**
    * [৩. সিঙ্গেল নোট ভ্যালিডেশনসহ গেট করা]
-   * কী কাজ করে: অনারশিপ চেক করে নির্দিষ্ট নোটটি রিটার্ন করে।
+   নির্দিষ্ট কোনো নোট আইডি দিয়ে খোঁজার পর সেটি ডিক্রিপ্ট করে রিটার্ন করা হয়েছে
   */
 
   async findOne(id: string, userId: string) {
@@ -121,21 +121,48 @@ export class NoteService {
       throw new ForbiddenException('Access denied to this note');
     }
 
-    return note;
+    return this.decryptNote(note);
   }
 
   /**
    * [৪. নোট আপডেট করা]
-   * কী কাজ করে: নতুন এনক্রিপ্টেড ডাটা দিয়ে বিদ্যমান নোট আপডেট করে।
+   ইউজার নতুন কোনো টাইটেল বা কন্টেন্ট আপডেট করলে সেগুলোকে আবার নতুন করে এনক্রিপ্ট করে
+  iv, authTag সহ আপডেট করার লজিক যুক্ত করা হয়েছে
   */
 
   async update(id: string, userId: string, dto: UpdateNoteDto) {
+    // নোটের অস্তিত্ব এবং ওনারশিপ চেক
     await this.findOne(id, userId);
 
-    return this.prisma.note.update({
+    const updateData: any = {};
+
+    // যদি টাইটেল বা কন্টেন্ট আপডেট করা হয়, সেগুলোকে নতুন করে এনক্রিপ্ট করতে হবে
+    if (dto.title !== undefined) {
+      const encryptedTitle = this.cryptoService.encrypt(dto.title);
+      updateData.title = encryptedTitle.encryptedData;
+      updateData.iv = encryptedTitle.iv;
+      updateData.authTag = encryptedTitle.authTag;
+    }
+
+    if (dto.content !== undefined) {
+      const encryptedContent = this.cryptoService.encrypt(dto.content);
+      updateData.content = encryptedContent.encryptedData;
+      // যদি টাইটেল আপডেট না হয়ে থাকে কিন্তু কন্টেন্ট হয়, তবুও IV ও AuthTag আপডেট করতে হবে
+      updateData.iv = encryptedContent.iv;
+      updateData.authTag = encryptedContent.authTag;
+    }
+
+    // অন্যান্য ফিল্ডগুলো সরাসরি যুক্ত করা
+    if (dto.color !== undefined) updateData.color = dto.color;
+    if (dto.isPinned !== undefined) updateData.isPinned = dto.isPinned;
+    if (dto.notebookId !== undefined) updateData.notebookId = dto.notebookId;
+
+    const updatedNote = await this.prisma.note.update({
       where: { id },
-      data: { ...dto },
+      data: updateData,
     });
+
+    return this.decryptNote(updatedNote);
   }
 
   /**
