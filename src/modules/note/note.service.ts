@@ -211,19 +211,23 @@ export class NoteService {
   }
 
   /**
-   * [ট্র্যাশে থাকা নোটগুলোর লিস্ট পাওয়া]
-   * কী কাজ করে: ইউজারের সফট ডিলিট হওয়া সব নোট গেট করে।
+    [ট্র্যাশে থাকা নোটগুলোর লিস্ট পাওয়া]
+    কী কাজ করে: ইউজারের সফট ডিলিট হওয়া সব নোট গেট করে।
+    ট্র্যাশের নোটগুলো লিস্ট করার সময় বা ট্র্যাশ থেকে কোনো নোট রিস্টোর করার সময়
+    সেগুলোকে ডিক্রিপ্ট করে ফ্রন্টএন্ডে পাঠানোর জন্য আপডেট করা হয়েছে
    */
   async findTrashByUser(userId: string) {
-    return this.prisma.note.findMany({
+    const notes = await this.prisma.note.findMany({
       where: {
         userId,
-        isDeleted: true, // শুধু ট্র্যাশে থাকা নোটগুলো ফিল্টার করা হচ্ছে
+        isDeleted: true,
       },
       orderBy: {
-        deletedAt: 'desc', // যেগুলো সম্প্রতি ট্র্যাশে পাঠানো হয়েছে সেগুলো ওপরে থাকবে
+        deletedAt: 'desc',
       },
     });
+
+    return notes.map((note) => this.decryptNote(note));
   }
 
 
@@ -252,7 +256,7 @@ export class NoteService {
       details: { noteId: restoredNote.id },
     });
 
-    return restoredNote;
+    return this.decryptNote(restoredNote);
   }
 
   /**
