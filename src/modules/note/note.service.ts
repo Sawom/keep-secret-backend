@@ -85,11 +85,12 @@ export class NoteService {
 
   /**
    * [২. ইউজারের সব সক্রিয় নোট গেট করা]
-   * কী কাজ করে: ট্র্যাশে না থাকা (isDeleted: false) সব নোট পিন ও ডেট অনুযায়ী ফিল্টার করে নিয়ে আসে।
+    ডাটাবেস থেকে ইউজারের সব নোট ফেচ করার পর decryptNote helper function ব্যবহার করে সবগুলো নোট ডিক্রিপ্ট করে
+    ফ্রন্টএন্ডে পাঠানোর আপডেট করা হয়েছে।
   */
 
   async findAllByUser(userId: string, notebookId?: string) {
-    return this.prisma.note.findMany({
+    const notes = await this.prisma.note.findMany({
       where: {
         userId,
         isDeleted: false,
@@ -97,6 +98,9 @@ export class NoteService {
       },
       orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
     });
+
+    // সবগুলো নোট ডিক্রিপ্ট করে ফ্রন্টএন্ডে পাঠানো হচ্ছে
+    return notes.map((note) => this.decryptNote(note));
   }
 
   /**
