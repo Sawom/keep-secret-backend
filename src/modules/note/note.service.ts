@@ -26,15 +26,14 @@ export class NoteService {
     try {
       return {
         ...note,
-        title: note.title && note.iv && note.authTag
-          ? this.cryptoService.decrypt(note.title, note.iv, note.authTag)
+        title: note.title && note.titleIv && note.titleAuthTag
+          ? this.cryptoService.decrypt(note.title, note.titleIv, note.titleAuthTag)
           : note.title,
-        content: note.content && note.iv && note.authTag
-          ? this.cryptoService.decrypt(note.content, note.iv, note.authTag)
+        content: note.content && note.contentIv && note.contentAuthTag
+          ? this.cryptoService.decrypt(note.content, note.contentIv, note.contentAuthTag)
           : note.content,
       };
     } catch (error) {
-      // পুরোনো বা প্লেইন টেক্সট ডাটা হলে যাতে এরর না খায়
       return note;
     }
   }
@@ -56,16 +55,20 @@ export class NoteService {
       }
     }
 
-    // ব্যাকএন্ডে টাইটেল ও কন্টেন্ট এনক্রিপ্ট করে নেওয়া হচ্ছে
+    // টাইটেল এবং কন্টেন্ট আলাদাভাবে এনক্রিপ্ট করা হচ্ছে
     const encryptedTitle = this.cryptoService.encrypt(dto.title);
     const encryptedContent = dto.content ? this.cryptoService.encrypt(dto.content) : null;
 
     const newNote = await this.prisma.note.create({
       data: {
         title: encryptedTitle.encryptedData,
+        titleIv: encryptedTitle.iv,
+        titleAuthTag: encryptedTitle.authTag,
+
         content: encryptedContent ? encryptedContent.encryptedData : '',
-        iv: encryptedTitle.iv, // ইউনিক IV
-        authTag: encryptedTitle.authTag, // Auth Tag
+        contentIv: encryptedContent ? encryptedContent.iv : null,
+        contentAuthTag: encryptedContent ? encryptedContent.authTag : null,
+
         color: dto.color ?? '#FFFFFF',
         isPinned: dto.isPinned ?? false,
         notebookId: dto.notebookId ?? null,
@@ -73,13 +76,11 @@ export class NoteService {
       },
     });
 
-    // [Audit Log Trigger]: নোট তৈরি সফল হলে অডিট লগ সেভ হবে
     await this.auditLogService.log(userId, {
       action: 'NOTE_CREATE',
-      details: { noteId: newNote.id, title: dto.title }, // লগে আসল প্লেইন টাইটেল রাখা যেতে পারে
+      details: { noteId: newNote.id, title: dto.title },
     });
 
-    // ফ্রন্টএন্ডে রেসপন্স পাঠানোর সময় ডিক্রিপ্ট করে পাঠানো হচ্ছে
     return this.decryptNote(newNote);
   }
 
@@ -131,28 +132,26 @@ export class NoteService {
   */
 
   async update(id: string, userId: string, dto: UpdateNoteDto) {
-    // নোটের অস্তিত্ব এবং ওনারশিপ চেক
     await this.findOne(id, userId);
 
     const updateData: any = {};
 
-    // যদি টাইটেল বা কন্টেন্ট আপডেট করা হয়, সেগুলোকে নতুন করে এনক্রিপ্ট করতে হবে
+    // টাইটেল আপডেট হলে আলাদাভাবে এনক্রিপ্ট ও মেটাডাটা সেট হবে
     if (dto.title !== undefined) {
       const encryptedTitle = this.cryptoService.encrypt(dto.title);
       updateData.title = encryptedTitle.encryptedData;
-      updateData.iv = encryptedTitle.iv;
-      updateData.authTag = encryptedTitle.authTag;
+      updateData.titleIv = encryptedTitle.iv;
+      updateData.titleAuthTag = encryptedTitle.authTag;
     }
 
+    // কন্টেন্ট আপডেট হলে আলাদাভাবে এনক্রিপ্ট ও মেটাডাটা সেট হবে
     if (dto.content !== undefined) {
       const encryptedContent = this.cryptoService.encrypt(dto.content);
       updateData.content = encryptedContent.encryptedData;
-      // যদি টাইটেল আপডেট না হয়ে থাকে কিন্তু কন্টেন্ট হয়, তবুও IV ও AuthTag আপডেট করতে হবে
-      updateData.iv = encryptedContent.iv;
-      updateData.authTag = encryptedContent.authTag;
+      updateData.contentIv = encryptedContent.iv;
+      updateData.contentAuthTag = encryptedContent.authTag;
     }
 
-    // অন্যান্য ফিল্ডগুলো সরাসরি যুক্ত করা
     if (dto.color !== undefined) updateData.color = dto.color;
     if (dto.isPinned !== undefined) updateData.isPinned = dto.isPinned;
     if (dto.notebookId !== undefined) updateData.notebookId = dto.notebookId;
