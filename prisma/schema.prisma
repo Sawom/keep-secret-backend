@@ -43,6 +43,10 @@ model Notebook {
   color       String?  @default("#3B82F6")
   icon        String?  @default("book")
   position    Float    @default(0.0)
+
+  // Soft Delete Lifecycle
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
   
   // User Relationship (1-to-Many Connection with User)
   userId      String
