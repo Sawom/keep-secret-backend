@@ -62,6 +62,7 @@ export class NotebookService {
     const userNotebooks = await this.prisma.notebook.findMany({
       where: {
         userId: userId,
+        isDeleted: false,
       },
       orderBy: {
         position: 'asc',
@@ -74,7 +75,7 @@ export class NotebookService {
         },
       },
     });
-    
+
     return userNotebooks;
   }
 
@@ -130,32 +131,116 @@ export class NotebookService {
   }
 
   /**
-   * [৫. নোটবুক মুছে ফেলা (Delete)]
-   * 
-   * কী কাজ করে: একটি নোটবুক ডাটাবেস থেকে ডিলিট করে।
-   * কীভাবে কাজ করে:
-   * - প্রথমে `this.findOne(id, userId)` দিয়ে ইউজার সিকিউরিটি ভ্যালিডেট করা হয়।
-   * - অনারশিপ নিশ্চিত হলে Prisma-র `delete` দিয়ে সেটি মুছে দেওয়া হয়।
-   * - (নোট: Prisma Schema-তে `onDelete: SetNull` থাকার কারণে এই নোটবুক ডিলিট হলেও এর ভেতরের নোটগুলো ডিলিট হবে না, শুধু সেগুলোর `notebookId` খালি/null হয়ে যাবে)।
+   * নোটবুক ট্র্যাশে পাঠানো (Soft Delete)
    */
-
-  async remove(id: string, userId: string) {
-    // অনারশিপ ও অস্তিত্ব নিশ্চিত করা
+  async softDelete(id: string, userId: string) {
     await this.findOne(id, userId);
 
-    // ডিলিট অপারেশন
+    const updatedNotebook = await this.prisma.notebook.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    });
+
+    await this.auditLogService.log(userId, {
+      action: 'NOTEBOOK_TRASH',
+      details: { notebookId: id },
+    });
+
+    return updatedNotebook;
+  }
+
+  /**
+   * স্থায়ীভাবে নোটবুক ডিলিট করা (Hard Delete)
+   */
+  async hardDelete(id: string, userId: string) {
+    await this.findOne(id, userId);
+
     await this.prisma.notebook.delete({
       where: { id },
     });
 
-    // [Audit Log Trigger]: নোটবুক ডিলিটের লগ
     await this.auditLogService.log(userId, {
-      action: 'NOTEBOOK_DELETE',
-      details: { noteId: id },
+      action: 'NOTEBOOK_PERMANENT_DELETE',
+      details: { notebookId: id },
+    });
+
+    return { message: 'Notebook permanently deleted' };
+  }
+
+  /**
+   * ট্র্যাশে থাকা নোটবুকগুলোর লিস্ট পাওয়া
+   */
+  async findTrashByUser(userId: string) {
+    const notebooks = await this.prisma.notebook.findMany({
+      where: {
+        userId,
+        isDeleted: true,
+      },
+      orderBy: {
+        deletedAt: 'desc',
+      },
+      include: {
+        _count: {
+          select: {
+            notes: true,
+          },
+        },
+      },
+    });
+
+    return notebooks;
+  }
+
+  /**
+   * ট্র্যাশ থেকে নোটবুক Restore করা
+   */
+  async restoreNotebook(id: string, userId: string) {
+    const notebook = await this.prisma.notebook.findFirst({
+      where: { id, userId, isDeleted: true },
+    });
+
+    if (!notebook) {
+      throw new NotFoundException('Notebook not found in trash');
+    }
+
+    const restoredNotebook = await this.prisma.notebook.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+      },
+    });
+
+    await this.auditLogService.log(userId, {
+      action: 'NOTEBOOK_RESTORE',
+      details: { notebookId: restoredNotebook.id },
+    });
+
+    return restoredNotebook;
+  }
+
+  /**
+   * নোটবুক ট্র্যাশ সম্পূর্ণ খালি করা (Empty Trash)
+   */
+  async emptyTrash(userId: string) {
+    const deletedNotebooks = await this.prisma.notebook.deleteMany({
+      where: {
+        userId,
+        isDeleted: true,
+      },
+    });
+
+    await this.auditLogService.log(userId, {
+      action: 'NOTEBOOK_TRASH_EMPTY',
+      details: { count: deletedNotebooks.count },
     });
 
     return {
-      message: 'Notebook deleted successfully',
+      message: 'Notebook trash emptied successfully',
+      count: deletedNotebooks.count,
     };
   }
 

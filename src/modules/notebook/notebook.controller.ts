@@ -58,6 +58,15 @@ export class NotebookController {
   }
 
   /**
+   * [GET /notebooks/trash]
+   * সফট ডিলিট হওয়া সব নোটবুক দেখতে পাওয়ার এপিআই
+   */
+  @Get('trash')
+  getTrashNotebooks(@Req() req: AuthenticatedRequest) {
+    return this.notebookService.findTrashByUser(req.user.id);
+  }
+
+  /**
    * [GET /notebooks/:id]
    * কী করে: ইউআরএল প্যারামিটার (`:id`) থেকে আইডি নিয়ে নির্দিষ্ট নোটবুক দেখায়।
    */
