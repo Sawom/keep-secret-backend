@@ -67,6 +67,15 @@ export class NotebookController {
   }
 
   /**
+   * [DELETE /notebooks/trash/empty]
+   * নোটবুকের ট্র্যাশ সম্পূর্ণ খালি করার রাউট
+   */
+  @Delete('trash/empty')
+  emptyTrash(@Req() req: AuthenticatedRequest) {
+    return this.notebookService.emptyTrash(req.user.id);
+  }
+
+  /**
    * [GET /notebooks/:id]
    * কী করে: ইউআরএল প্যারামিটার (`:id`) থেকে আইডি নিয়ে নির্দিষ্ট নোটবুক দেখায়।
    */
@@ -91,13 +100,34 @@ export class NotebookController {
   }
 
   /**
+   * [PATCH /notebooks/:id/trash]
+   * নোটবুক ট্র্যাশে পাঠানো (Soft Delete)
+   */
+  @Patch(':id/trash')
+  softDelete(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.notebookService.softDelete(id, req.user.id);
+  }
+
+  /**
+   * [PATCH /notebooks/:id/restore]
+   * ট্র্যাশ থেকে নোটবুক রিস্টোর করা
+   */
+  @Patch(':id/restore')
+  restoreNotebook(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.notebookService.restoreNotebook(id, req.user.id);
+  }
+
+  /**
    * [DELETE /notebooks/:id]
    * কী করে: নির্দিষ্ট একটি নোটবুক মুছে ফেলে।
    */
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.notebookService.remove(id, req.user.id);
+  hardDelete(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.notebookService.hardDelete(id, req.user.id);
   }
 
 }
