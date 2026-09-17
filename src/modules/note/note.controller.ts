@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -63,6 +64,23 @@ export class NoteController {
   @Delete('trash/empty')
   emptyTrash(@Req() req: AuthenticatedRequest) {
     return this.noteService.emptyTrash(req.user.id);
+  }
+
+  /**
+   * [PATCH /notes/reorder]
+   * ড্র্যাগ এন্ড ড্রপের পর নোটগুলোর নতুন পজিশন সেভ করার রাউট
+   */
+  @Patch('reorder')
+  reorderNotes(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: {
+      items: {
+        id: string;
+        position: number;
+      }[];
+    },
+  ) {
+    return this.noteService.reorderNotes(req.user.id, body.items);
   }
 
   /**

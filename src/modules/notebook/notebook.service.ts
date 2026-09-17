@@ -222,6 +222,60 @@ export class NotebookService {
     return restoredNotebook;
   }
 
+  // drag and drop 
+  async reorderNotebooks(
+    userId: string,
+    items: { id: string; position: number }[],
+  ) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        message: 'No notebooks to reorder',
+      };
+    }
+
+    // ১. পাঠানো notebook ID গুলো বের করা
+    const notebookIds = items.map((item) => item.id);
+
+    // ২. সব notebook এই user-এর কিনা verify করা
+    const notebooks = await this.prisma.notebook.findMany({
+      where: {
+        id: {
+          in: notebookIds,
+        },
+        userId,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    // ৩. অন্য user-এর notebook reorder করার চেষ্টা হলে reject
+    if (notebooks.length !== notebookIds.length) {
+      throw new ForbiddenException(
+        'You do not have permission to reorder these notebooks',
+      );
+    }
+
+    // ৪. সব position এক transaction-এর মধ্যে update
+    await this.prisma.$transaction(
+      items.map((item) =>
+        this.prisma.notebook.update({
+          where: {
+            id: item.id,
+          },
+          data: {
+            position: item.position,
+          },
+        }),
+      ),
+    );
+
+    return {
+      message: 'Notebooks reordered successfully',
+    };
+  }
+
   /**
    * নোটবুক ট্র্যাশ সম্পূর্ণ খালি করা (Empty Trash)
    */

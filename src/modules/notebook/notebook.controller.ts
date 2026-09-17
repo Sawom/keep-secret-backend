@@ -75,6 +75,23 @@ export class NotebookController {
     return this.notebookService.emptyTrash(req.user.id);
   }
 
+  // drag and drop 
+  @Patch('reorder')
+  reorderNotebooks(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: {
+      items: {
+        id: string;
+        position: number;
+      }[];
+    },
+  ) {
+    return this.notebookService.reorderNotebooks(
+      req.user.id,
+      body.items,
+    );
+  }
+
   /**
    * [GET /notebooks/:id]
    * কী করে: ইউআরএল প্যারামিটার (`:id`) থেকে আইডি নিয়ে নির্দিষ্ট নোটবুক দেখায়।

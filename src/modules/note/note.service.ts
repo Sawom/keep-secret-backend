@@ -97,7 +97,7 @@ export class NoteService {
         isDeleted: false,
         ...(notebookId ? { notebookId } : {}),
       },
-      orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+      orderBy: [{ isPinned: 'desc' }, { position: 'asc' }],
     });
 
     // সবগুলো নোট ডিক্রিপ্ট করে ফ্রন্টএন্ডে পাঠানো হচ্ছে
@@ -256,6 +256,62 @@ export class NoteService {
     });
 
     return this.decryptNote(restoredNote);
+  }
+
+  /**
+   * [নোটগুলোর পজিশন বা অর্ডার আপডেট করা]
+   */
+  async reorderNotes(
+    userId: string,
+    items: { id: string; position: number }[],
+  ) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        message: 'No notes to reorder',
+      };
+    }
+
+    // ১. পাঠানো সব note ID এই user-এর কিনা verify করা
+    const noteIds = items.map((item) => item.id);
+
+    const notes = await this.prisma.note.findMany({
+      where: {
+        id: {
+          in: noteIds,
+        },
+        userId,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    // ২. Security check
+    // অন্য user-এর note ID পাঠালে reject করবে
+    if (notes.length !== noteIds.length) {
+      throw new ForbiddenException(
+        'You do not have permission to reorder these notes',
+      );
+    }
+
+    // ৩. সব position এক transaction-এর মধ্যে update করা
+    await this.prisma.$transaction(
+      items.map((item) =>
+        this.prisma.note.update({
+          where: {
+            id: item.id,
+          },
+          data: {
+            position: item.position,
+          },
+        }),
+      ),
+    );
+
+    return {
+      message: 'Notes reordered successfully',
+    };
   }
 
   /**
