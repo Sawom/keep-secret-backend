@@ -24,8 +24,15 @@ export class AuthController {
     }
 
     /**
-     * [POST] /auth/login
-     */
+ * [POST] /auth/login
+ *
+ * 🔧 CHANGED:
+ *
+ * Access Token এবং Refresh Token দুটোই HttpOnly cookie হিসেবে
+ * সেট করা হচ্ছে।
+ *
+ * Frontend আর কোনো token পাবে না।
+ */
     @Post('login')
     @HttpCode(HttpStatus.OK)
     async login(
@@ -34,62 +41,138 @@ export class AuthController {
     ) {
         const result = await this.authService.login(dto);
 
-        // রিফ্রেশ টোকেন HttpOnly কুকি হিসেবে সেট করা (৭ দিন মেয়াদ)
+        /*
+         * Access Token → HttpOnly cookie
+         */
+        res.cookie('accessToken', result.accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite:
+                process.env.NODE_ENV === 'production'
+                    ? 'none'
+                    : 'lax',
+            path: '/',
+            maxAge: 10 * 60 * 1000,
+        });
+
+        /*
+         * Refresh Token → HttpOnly cookie
+         */
         res.cookie('refreshToken', result.refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            sameSite:
+                process.env.NODE_ENV === 'production'
+                    ? 'none'
+                    : 'lax',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        // এক্সেস টোকেন এবং ইউজার ডাটা বডিতে পাঠানো (ফ্রন্টএন্ডের স্টেট বা Zustand-এ রাখার জন্য)
+        /*
+         * 🔧 CHANGED:
+         *
+         * Access token আর response body-তে পাঠানো হবে না।
+         */
         return {
             message: 'Login successful',
-            accessToken: result.accessToken,
             user: result.user,
         };
     }
 
     /**
-     * [POST] /auth/refresh - সাইলেন্ট টোকেন রিফ্রেশ রুট
-     */
+ * [POST] /auth/refresh
+ *
+ * 🔧 CHANGED:
+ *
+ * Refresh Token HttpOnly cookie থেকে নেওয়া হবে।
+ * নতুন Access Token HttpOnly cookie-তে সেট হবে।
+ */
     @Post('refresh')
     @HttpCode(HttpStatus.OK)
     async refresh(
         @Req() req: any,
         @Res({ passthrough: true }) res: Response,
     ) {
-        const incomingRefreshToken = req.cookies?.refreshToken;
-        const result = await this.authService.refreshTokens(incomingRefreshToken);
+        const incomingRefreshToken =
+            req.cookies?.refreshToken;
+
+        const result =
+            await this.authService.refreshTokens(
+                incomingRefreshToken
+            );
+
+        /*
+         * নতুন Access Token cookie-তে set করা।
+         */
+        res.cookie('accessToken', result.accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite:
+                process.env.NODE_ENV === 'production'
+                    ? 'none'
+                    : 'lax',
+            path: '/',
+            maxAge: 10 * 60 * 1000,
+        });
 
         return {
             message: 'Token refreshed successfully',
-            accessToken: result.accessToken,
             user: result.user,
         };
     }
 
     /**
-     * [POST] /auth/logout
-     */
-    @UseGuards(JwtAuthGuard)
+ * [POST] /auth/logout
+ *
+ * 🔧 CHANGED:
+ *
+ * Access token expired হলেও logout যেন কাজ করে।
+ * তাই এই endpoint-এর জন্য expired access token-এর উপর
+ * নির্ভর করা হবে না।
+ */
     @Post('logout')
     @HttpCode(HttpStatus.OK)
     async logout(
-        @GetUser() user: { id: string },
+        @Req() req: any,
         @Res({ passthrough: true }) res: Response,
     ) {
-        await this.authService.logout(user.id);
+        const refreshToken =
+            req.cookies?.refreshToken;
 
-        res.clearCookie('refreshToken', {
+        await this.authService.logoutByRefreshToken(
+            refreshToken
+        );
+
+        /*
+         * Access token cookie clear
+         */
+        res.clearCookie('accessToken', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            sameSite:
+                process.env.NODE_ENV === 'production'
+                    ? 'none'
+                    : 'lax',
             path: '/',
         });
 
-        return { message: 'Logged out successfully' };
+        /*
+         * Refresh token cookie clear
+         */
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite:
+                process.env.NODE_ENV === 'production'
+                    ? 'none'
+                    : 'lax',
+            path: '/',
+        });
+
+        return {
+            message: 'Logged out successfully',
+        };
     }
 
     /**
@@ -116,7 +199,16 @@ export class AuthController {
     @UseGuards(GoogleOAuthGuard)
     async googleAuth(@Req() req: any, @Res() res: any) { }
 
-    // ২. গুগল থেকে ব্যাক আসার পর কলব্যাক হ্যান্ডেল করার জন্য
+    /**
+ * [GET] /auth/google/callback
+ *
+ * 🔧 CHANGED:
+ *
+ * Google login-এর Access Token আর URL parameter হিসেবে
+ * frontend-এ পাঠানো হবে না।
+ *
+ * Access + Refresh দুটো HttpOnly cookie হবে।
+ */
     @Get('google/callback')
     @UseGuards(AuthGuard('google'))
     async googleAuthRedirect(
@@ -125,18 +217,45 @@ export class AuthController {
     ) {
         const authResult = req.user;
 
-        // রিফ্রেশ টোকেন কুকি সেট করা
+        /*
+         * Access Token → HttpOnly cookie
+         */
+        res.cookie('accessToken', authResult.accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite:
+                process.env.NODE_ENV === 'production'
+                    ? 'none'
+                    : 'lax',
+            path: '/',
+            maxAge: 10 * 60 * 1000,
+        });
+
+        /*
+         * Refresh Token → HttpOnly cookie
+         */
         res.cookie('refreshToken', authResult.refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            sameSite:
+                process.env.NODE_ENV === 'production'
+                    ? 'none'
+                    : 'lax',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        const frontendUrl = process.env.FRONTEND_URL;
-        // এক্সেস টোকেনটি ইউআরএল প্যারামিটার হিসেবে ফ্রন্টএন্ডে পাঠানো হচ্ছে, যা ক্যাচ করে Zustand এ সেট হবে
-        return res.redirect(`${frontendUrl}/callback?token=${authResult.accessToken}`);
+        const frontendUrl =
+            process.env.FRONTEND_URL;
+
+        /*
+         * 🔧 CHANGED:
+         *
+         * URL-এ কোনো token নেই।
+         */
+        return res.redirect(
+            `${frontendUrl}/dashboard`
+        );
     }
 
     /**

@@ -131,43 +131,145 @@ export class NotebookService {
   }
 
   /**
-   * নোটবুক ট্র্যাশে পাঠানো (Soft Delete)
-   */
-  async softDelete(id: string, userId: string) {
-    await this.findOne(id, userId);
+ * নোটবুক ট্র্যাশে পাঠানো (Soft Delete)
+ *
+ * 🔧 CHANGED:
+ *
+ * Notebook-এর সাথে active notes-গুলোও একই transaction-এ
+ * trash-এ যাবে।
+ *
+ * এতে notebook + তার notes একই lifecycle follow করবে।
+ */
+  async softDelete(
+    id: string,
+    userId: string
+  ) {
+    const notebook =
+      await this.prisma.notebook.findFirst({
+        where: {
+          id,
+          userId,
+          isDeleted: false,
+        },
+      });
 
-    const updatedNotebook = await this.prisma.notebook.update({
-      where: { id },
-      data: {
-        isDeleted: true,
-        deletedAt: new Date(),
-      },
-    });
+    if (!notebook) {
+      throw new NotFoundException(
+        'Notebook not found'
+      );
+    }
 
-    await this.auditLogService.log(userId, {
-      action: 'NOTEBOOK_TRASH',
-      details: { notebookId: id },
-    });
+    const deletedAt =
+      new Date();
 
-    return updatedNotebook;
+    await this.prisma.$transaction([
+      /*
+       * Notebook trash
+       */
+      this.prisma.notebook.update({
+        where: {
+          id,
+        },
+        data: {
+          isDeleted: true,
+          deletedAt,
+        },
+      }),
+
+      /*
+       * Notebook-এর active notes-গুলোও trash
+       */
+      this.prisma.note.updateMany({
+        where: {
+          userId,
+          notebookId: id,
+          isDeleted: false,
+        },
+        data: {
+          isDeleted: true,
+          deletedAt,
+          deletedWithNotebook: true,
+        },
+      }),
+    ]);
+
+    await this.auditLogService.log(
+      userId,
+      {
+        action:
+          'NOTEBOOK_TRASH',
+        details: {
+          notebookId: id,
+        },
+      }
+    );
+
+    return {
+      message:
+        'Notebook and its notes moved to trash',
+      notebookId: id,
+    };
   }
 
   /**
-   * স্থায়ীভাবে নোটবুক ডিলিট করা (Hard Delete)
-   */
-  async hardDelete(id: string, userId: string) {
-    await this.findOne(id, userId);
+ * স্থায়ীভাবে নোটবুক ডিলিট করা
+ *
+ * 🔧 CHANGED:
+ *
+ * Notebook-এর সাথে notebook-trash-এর কারণে
+ * deleted হওয়া notes-গুলোও permanently delete হবে।
+ */
+  async hardDelete(
+    id: string,
+    userId: string
+  ) {
+    const notebook =
+      await this.prisma.notebook.findFirst({
+        where: {
+          id,
+          userId,
+          isDeleted: true,
+        },
+      });
 
-    await this.prisma.notebook.delete({
-      where: { id },
-    });
+    if (!notebook) {
+      throw new NotFoundException(
+        'Notebook not found in trash'
+      );
+    }
 
-    await this.auditLogService.log(userId, {
-      action: 'NOTEBOOK_PERMANENT_DELETE',
-      details: { notebookId: id },
-    });
+    await this.prisma.$transaction([
+      this.prisma.note.deleteMany({
+        where: {
+          userId,
+          notebookId: id,
+          isDeleted: true,
+          deletedWithNotebook: true,
+        },
+      }),
 
-    return { message: 'Notebook permanently deleted' };
+      this.prisma.notebook.delete({
+        where: {
+          id,
+        },
+      }),
+    ]);
+
+    await this.auditLogService.log(
+      userId,
+      {
+        action:
+          'NOTEBOOK_PERMANENT_DELETE',
+        details: {
+          notebookId: id,
+        },
+      }
+    );
+
+    return {
+      message:
+        'Notebook permanently deleted',
+    };
   }
 
   /**
@@ -195,31 +297,74 @@ export class NotebookService {
   }
 
   /**
-   * ট্র্যাশ থেকে নোটবুক Restore করা
-   */
-  async restoreNotebook(id: string, userId: string) {
-    const notebook = await this.prisma.notebook.findFirst({
-      where: { id, userId, isDeleted: true },
-    });
+ * ট্র্যাশ থেকে নোটবুক Restore করা
+ *
+ * 🔧 CHANGED:
+ *
+ * Notebook-এর সাথে যেসব notes notebook trash-এর কারণে
+ * trash হয়েছিল শুধু সেগুলো restore হবে।
+ */
+  async restoreNotebook(
+    id: string,
+    userId: string
+  ) {
+    const notebook =
+      await this.prisma.notebook.findFirst({
+        where: {
+          id,
+          userId,
+          isDeleted: true,
+        },
+      });
 
     if (!notebook) {
-      throw new NotFoundException('Notebook not found in trash');
+      throw new NotFoundException(
+        'Notebook not found in trash'
+      );
     }
 
-    const restoredNotebook = await this.prisma.notebook.update({
-      where: { id },
-      data: {
-        isDeleted: false,
-        deletedAt: null,
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.notebook.update({
+        where: {
+          id,
+        },
+        data: {
+          isDeleted: false,
+          deletedAt: null,
+        },
+      }),
 
-    await this.auditLogService.log(userId, {
-      action: 'NOTEBOOK_RESTORE',
-      details: { notebookId: restoredNotebook.id },
-    });
+      this.prisma.note.updateMany({
+        where: {
+          userId,
+          notebookId: id,
+          isDeleted: true,
+          deletedWithNotebook: true,
+        },
+        data: {
+          isDeleted: false,
+          deletedAt: null,
+          deletedWithNotebook: false,
+        },
+      }),
+    ]);
 
-    return restoredNotebook;
+    await this.auditLogService.log(
+      userId,
+      {
+        action:
+          'NOTEBOOK_RESTORE',
+        details: {
+          notebookId: id,
+        },
+      }
+    );
+
+    return {
+      message:
+        'Notebook and its notes restored',
+      notebookId: id,
+    };
   }
 
   // drag and drop 

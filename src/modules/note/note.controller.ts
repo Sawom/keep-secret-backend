@@ -38,12 +38,61 @@ export class NoteController {
     return this.noteService.create(req.user.id, createNoteDto);
   }
 
+
+  // all notes fetching. এখানে আমি cursor-based infinite loading দেব। UI pagination থাকবে না। 
   @Get()
   findAll(
     @Req() req: AuthenticatedRequest,
-    @Query('notebookId') notebookId?: string,
+
+    @Query('notebookId')
+    notebookId?: string,
+
+    @Query('limit')
+    limit?: string,
+
+    @Query('cursor')
+    cursor?: string,
+
+    @Query('search')
+    search?: string,
   ) {
-    return this.noteService.findAllByUser(req.user.id, notebookId);
+    const parsedLimit = Math.min(
+      Math.max(
+        Number(limit) || 20,
+        1,
+      ),
+      50,
+    );
+
+    return this.noteService.findAllByUser(
+      req.user.id,
+      notebookId,
+      parsedLimit,
+      cursor,
+      search,
+    );
+  }
+
+  // search route
+  @Get('search')
+  search(
+    @Req() req: AuthenticatedRequest,
+    @Query('q') query?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = Math.min(
+      Math.max(
+        Number(limit) || 50,
+        1,
+      ),
+      100,
+    );
+
+    return this.noteService.searchByUser(
+      req.user.id,
+      query || '',
+      parsedLimit,
+    );
   }
 
   /**

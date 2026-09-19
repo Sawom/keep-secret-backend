@@ -85,8 +85,9 @@ model Note {
   position       Float     @default(0.0)            // Drag-and-drop reordering
 
   // Soft Delete Lifecycle
-  isDeleted      Boolean   @default(false)     // To send to the Trash/Bin system (Soft Delete)
-  deletedAt      DateTime?                    // When it was deleted (for permanent deletion after 30 days)
+  isDeleted             Boolean   @default(false)     // To send to the Trash/Bin system (Soft Delete)
+  deletedAt             DateTime?                    // When it was deleted (for permanent deletion after 30 days)
+  deletedWithNotebook   Boolean  @default(false)
 
   // Concurrency Control (To prevent conflicts when the same note is edited from two locations.)
   version        Int       @default(1)

@@ -172,30 +172,60 @@ export class AuthService {
     }
 
     /**
-     * [৪. রিফ্রেশ টোকেন দিয়ে নতুন এক্সেস টোকেন নেওয়া]
-     */
-    async refreshTokens(incomingRefreshToken: string) {
+ * [৪. রিফ্রেশ টোকেন দিয়ে নতুন এক্সেস টোকেন নেওয়া]
+ *
+ * 🔧 CHANGED:
+ *
+ * Refresh token শুধুমাত্র HttpOnly cookie থেকে আসবে।
+ */
+    async refreshTokens(
+        incomingRefreshToken: string
+    ) {
         if (!incomingRefreshToken) {
-            throw new UnauthorizedException('Refresh token not found');
+            throw new UnauthorizedException(
+                'Refresh token not found'
+            );
         }
 
         try {
-            const payload = this.jwtService.verify(incomingRefreshToken);
-            const user = await this.prisma.user.findUnique({
-                where: { id: payload.sub },
-            });
+            const payload =
+                this.jwtService.verify(
+                    incomingRefreshToken
+                );
 
-            if (!user || !user.hashedRefreshToken) {
-                throw new UnauthorizedException('Access Denied');
+            const user =
+                await this.prisma.user.findUnique({
+                    where: {
+                        id: payload.sub,
+                    },
+                });
+
+            if (
+                !user ||
+                !user.hashedRefreshToken
+            ) {
+                throw new UnauthorizedException(
+                    'Access denied'
+                );
             }
 
-            const refreshTokenMatches = await bcrypt.compare(incomingRefreshToken, user.hashedRefreshToken);
+            const refreshTokenMatches =
+                await bcrypt.compare(
+                    incomingRefreshToken,
+                    user.hashedRefreshToken
+                );
+
             if (!refreshTokenMatches) {
-                throw new UnauthorizedException('Access Denied');
+                throw new UnauthorizedException(
+                    'Access denied'
+                );
             }
 
-            // নতুন এক্সেস টোকেন জেনারেট
-            const newAccessToken = this.generateAccessToken(user.id, user.email);
+            const newAccessToken =
+                this.generateAccessToken(
+                    user.id,
+                    user.email
+                );
 
             return {
                 accessToken: newAccessToken,
@@ -207,8 +237,53 @@ export class AuthService {
                 },
             };
         } catch (error) {
-            throw new UnauthorizedException('Invalid or expired refresh token');
+            throw new UnauthorizedException(
+                'Invalid or expired refresh token'
+            );
         }
+    }
+
+    /**
+ * 🔧 NEW:
+ *
+ * Access token expired হলেও refresh token দিয়ে
+ * user session invalidate করার জন্য।
+ */
+    async logoutByRefreshToken(
+        refreshToken?: string
+    ) {
+        if (!refreshToken) {
+            return {
+                message: 'Logged out successfully',
+            };
+        }
+
+        try {
+            const payload =
+                this.jwtService.verify(
+                    refreshToken
+                );
+
+            if (payload?.sub) {
+                await this.prisma.user.update({
+                    where: {
+                        id: payload.sub,
+                    },
+                    data: {
+                        hashedRefreshToken: null,
+                    },
+                });
+            }
+        } catch {
+            /*
+             * Invalid/expired refresh token হলেও
+             * browser cookie clear করা হবে।
+             */
+        }
+
+        return {
+            message: 'Logged out successfully',
+        };
     }
 
     /**
@@ -260,9 +335,9 @@ export class AuthService {
         const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
         await transporter.sendMail({
-            from: `"KeepSecret Security" <no-reply@yourdomain.com>`, 
+            from: `"KeepSecret Security" <no-reply@yourdomain.com>`,
             to: user.email,
-            subject: 'Password Reset Instructions', 
+            subject: 'Password Reset Instructions',
             text: `Hello ${user.fullName}, You requested a password reset. Click here: ${resetLink} (Valid for 1 hour)`, // প্লেন টেক্সট ভার্সন রাখা স্প্যাম এড়াতে অত্যন্ত জরুরি!
             html: `
             <!DOCTYPE html>

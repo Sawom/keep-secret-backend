@@ -85,23 +85,447 @@ export class NoteService {
   }
 
   /**
-   * [২. ইউজারের সব সক্রিয় নোট গেট করা]
-    ডাটাবেস থেকে ইউজারের সব নোট ফেচ করার পর decryptNote helper function ব্যবহার করে সবগুলো নোট ডিক্রিপ্ট করে
-    ফ্রন্টএন্ডে পাঠানোর আপডেট করা হয়েছে।
-  */
+ * [ইউজারের active notes]
+ *
+ * Normal mode:
+ *   cursor-based pagination
+ *
+ * Search mode:
+ *   encrypted note decrypt করে title/content search
+ *   তারপর cursor-based chunk return
+ *
+ * UI-তে traditional pagination থাকবে না। UI-তে pagination থাকবে না। Frontend scroll করলে next chunk চাইবে।
+ */
+  async findAllByUser(
+    userId: string,
+    notebookId?: string,
+    limit = 20,
+    cursor?: string,
+    search?: string,
+  ) {
+    const normalizedSearch =
+      search?.trim().toLowerCase() || '';
 
-  async findAllByUser(userId: string, notebookId?: string) {
-    const notes = await this.prisma.note.findMany({
-      where: {
+    /*
+     
+     * SEARCH MODE
+     * Database-এর title/content encrypted।
+     *
+     * তাই database-level plaintext contains search
+     * করা সম্ভব নয়।
+     *
+     * প্রথমে user's active notes fetch করা হচ্ছে,
+     * তারপর decrypt করে search করা হচ্ছে।
+     */
+    if (normalizedSearch) {
+      let cursorData:
+        | {
+          index: number;
+        }
+        | null = null;
+
+      if (cursor) {
+        try {
+          cursorData = JSON.parse(
+            Buffer.from(
+              cursor,
+              'base64url',
+            ).toString('utf8'),
+          );
+        } catch {
+          cursorData = null;
+        }
+      }
+
+      const where: any = {
         userId,
         isDeleted: false,
-        ...(notebookId ? { notebookId } : {}),
-      },
-      orderBy: [{ isPinned: 'desc' }, { position: 'asc' }],
-    });
 
-    // সবগুলো নোট ডিক্রিপ্ট করে ফ্রন্টএন্ডে পাঠানো হচ্ছে
-    return notes.map((note) => this.decryptNote(note));
+        ...(notebookId
+          ? { notebookId }
+          : {}),
+      };
+
+      const allNotes =
+        await this.prisma.note.findMany({
+          where,
+
+          orderBy: [
+            {
+              isPinned: 'desc',
+            },
+            {
+              position: 'asc',
+            },
+            {
+              id: 'asc',
+            },
+          ],
+        });
+
+      const matchingNotes = allNotes
+        .map((note) =>
+          this.decryptNote(note),
+        )
+        .filter((note) => {
+          const title =
+            typeof note.title === 'string'
+              ? note.title.toLowerCase()
+              : '';
+
+          const content =
+            typeof note.content === 'string'
+              ? note.content.toLowerCase()
+              : '';
+
+          return (
+            title.includes(normalizedSearch) ||
+            content.includes(normalizedSearch)
+          );
+        });
+
+      const startIndex =
+        cursorData?.index ?? 0;
+
+      const pageNotes =
+        matchingNotes.slice(
+          startIndex,
+          startIndex + limit,
+        );
+
+      const nextIndex =
+        startIndex + pageNotes.length;
+
+      const hasMore =
+        nextIndex < matchingNotes.length;
+
+      const data = pageNotes.map(
+        (note) => ({
+          id: note.id,
+          title: note.title,
+
+          content:
+            typeof note.content === 'string'
+              ? note.content.slice(0, 500)
+              : '',
+
+          color: note.color,
+          isPinned: note.isPinned,
+          position: note.position,
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+          notebookId: note.notebookId,
+        }),
+      );
+
+      let nextCursor:
+        | string
+        | null = null;
+
+      if (hasMore) {
+        nextCursor = Buffer.from(
+          JSON.stringify({
+            index: nextIndex,
+          }),
+        ).toString('base64url');
+      }
+
+      return {
+        data,
+        nextCursor,
+        hasMore,
+      };
+    }
+
+    /*
+     * NORMAL MODE
+     */
+
+    let cursorData:
+      | {
+        isPinned: boolean;
+        position: number;
+        id: string;
+      }
+      | null = null;
+
+    if (cursor) {
+      try {
+        cursorData = JSON.parse(
+          Buffer.from(
+            cursor,
+            'base64url',
+          ).toString('utf8'),
+        );
+      } catch {
+        cursorData = null;
+      }
+    }
+
+    const where: any = {
+      userId,
+      isDeleted: false,
+
+      ...(notebookId
+        ? { notebookId }
+        : {}),
+    };
+
+    if (cursorData) {
+      if (cursorData.isPinned) {
+        where.OR = [
+          {
+            isPinned: true,
+            position: {
+              gt: cursorData.position,
+            },
+          },
+          {
+            isPinned: true,
+            position:
+              cursorData.position,
+            id: {
+              gt: cursorData.id,
+            },
+          },
+          {
+            isPinned: false,
+          },
+        ];
+      } else {
+        where.OR = [
+          {
+            isPinned: false,
+            position: {
+              gt: cursorData.position,
+            },
+          },
+          {
+            isPinned: false,
+            position:
+              cursorData.position,
+            id: {
+              gt: cursorData.id,
+            },
+          },
+        ];
+      }
+    }
+
+    const notes =
+      await this.prisma.note.findMany({
+        where,
+
+        orderBy: [
+          {
+            isPinned: 'desc',
+          },
+          {
+            position: 'asc',
+          },
+          {
+            id: 'asc',
+          },
+        ],
+
+        take: limit + 1,
+      });
+
+    const hasMore =
+      notes.length > limit;
+
+    const pageNotes =
+      hasMore
+        ? notes.slice(0, limit)
+        : notes;
+
+    const data = pageNotes.map(
+      (note) => {
+        const decrypted =
+          this.decryptNote(note);
+
+        return {
+          id: decrypted.id,
+          title: decrypted.title,
+
+          content:
+            typeof decrypted.content ===
+              'string'
+              ? decrypted.content.slice(0, 500)
+              : '',
+
+          color: decrypted.color,
+          isPinned:
+            decrypted.isPinned,
+          position:
+            decrypted.position,
+          createdAt:
+            decrypted.createdAt,
+          updatedAt:
+            decrypted.updatedAt,
+          notebookId:
+            decrypted.notebookId,
+        };
+      },
+    );
+
+    let nextCursor:
+      | string
+      | null = null;
+
+    if (
+      hasMore &&
+      pageNotes.length > 0
+    ) {
+      const last =
+        pageNotes[
+        pageNotes.length - 1
+        ];
+
+      nextCursor = Buffer.from(
+        JSON.stringify({
+          isPinned:
+            last.isPinned,
+          position:
+            last.position,
+          id: last.id,
+        }),
+      ).toString('base64url');
+    }
+
+    return {
+      data,
+      nextCursor,
+      hasMore,
+    };
+  }
+
+  async searchByUser(
+    userId: string,
+    query: string,
+    limit = 50,
+  ) {
+    const normalizedQuery =
+      query.trim().toLowerCase();
+
+    /*
+     * Empty search হলে কোনো note return করবে না।
+     */
+    if (!normalizedQuery) {
+      return {
+        data: [],
+        hasMore: false,
+      };
+    }
+
+    /*
+     * Search result পাওয়ার জন্য limit + 1
+     * পর্যন্ত match collect করছি।
+     *
+     * এতে hasMore জানা যাবে।
+     */
+    const notes =
+      await this.prisma.note.findMany({
+        where: {
+          userId,
+          isDeleted: false,
+        },
+
+        orderBy: [
+          {
+            isPinned: 'desc',
+          },
+          {
+            position: 'asc',
+          },
+          {
+            id: 'asc',
+          },
+        ],
+      });
+
+    const matchedNotes = [];
+
+    for (const note of notes) {
+      const decrypted =
+        this.decryptNote(note);
+
+      const title =
+        typeof decrypted.title === 'string'
+          ? decrypted.title
+          : '';
+
+      const content =
+        typeof decrypted.content === 'string'
+          ? decrypted.content
+          : '';
+
+      const titleMatch =
+        title
+          .toLowerCase()
+          .includes(normalizedQuery);
+
+      const contentMatch =
+        content
+          .toLowerCase()
+          .includes(normalizedQuery);
+
+      if (
+        !titleMatch &&
+        !contentMatch
+      ) {
+        continue;
+      }
+
+      matchedNotes.push({
+        id: decrypted.id,
+
+        title,
+
+        content:
+          content.slice(0, 500),
+
+        color:
+          decrypted.color,
+
+        isPinned:
+          decrypted.isPinned,
+
+        position:
+          decrypted.position,
+
+        createdAt:
+          decrypted.createdAt,
+
+        updatedAt:
+          decrypted.updatedAt,
+
+        notebookId:
+          decrypted.notebookId,
+      });
+
+      /*
+       * limit + 1 match পেলেই থামবো।
+       */
+      if (
+        matchedNotes.length >
+        limit
+      ) {
+        break;
+      }
+    }
+
+    const hasMore =
+      matchedNotes.length > limit;
+
+    const data = hasMore
+      ? matchedNotes.slice(0, limit)
+      : matchedNotes;
+
+    return {
+      data,
+      hasMore,
+    };
   }
 
   /**
@@ -165,26 +589,45 @@ export class NoteService {
   }
 
   /**
-   * [৫. সফট ડিলিট / ট্র্যাশে পাঠানো (Soft Delete)]
-   * কী কাজ করে: নোট স্থায়ীভাবে ডিলিট না করে `isDeleted: true` সেট করে রিসাইকেল বিনের মতো রাখে।
-  */
+ * [৫. সফট ডিলিট / ট্র্যাশে পাঠানো]
+ *
+ * 🔧 CHANGED:
+ *
+ * User manually note delete করলে এটা
+ * notebook-এর কারণে deleted হিসেবে mark হবে না।
+ */
+  async softDelete(
+    id: string,
+    userId: string
+  ) {
+    await this.findOne(
+      id,
+      userId
+    );
 
-  async softDelete(id: string, userId: string) {
-    await this.findOne(id, userId);
+    const updatedNote =
+      await this.prisma.note.update({
+        where: {
+          id,
+        },
+        data: {
+          isDeleted: true,
+          deletedAt:
+            new Date(),
+          deletedWithNotebook:
+            false,
+        },
+      });
 
-    const updatedNote = await this.prisma.note.update({
-      where: { id },
-      data: {
-        isDeleted: true,
-        deletedAt: new Date(),
-      },
-    });
-
-    // [Audit Log Trigger]: ট্র্যাশে পাঠানোর লগ সেভ
-    await this.auditLogService.log(userId, {
-      action: 'NOTE_TRASH',
-      details: { noteId: id },
-    });
+    await this.auditLogService.log(
+      userId,
+      {
+        action: 'NOTE_TRASH',
+        details: {
+          noteId: id,
+        },
+      }
+    );
 
     return updatedNote;
   }
