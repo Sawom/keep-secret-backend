@@ -55,6 +55,48 @@ export class NoteService {
       }
     }
 
+    /*
+   * নতুন note-এর জন্য first position বের করা হচ্ছে।
+   *
+   * Existing notes-এর মধ্যে সবচেয়ে ছোট position
+   * নেওয়া হবে এবং তার থেকে 1 কম position দেওয়া হবে।
+   *
+   * Example:
+   *
+   * Existing:
+   * 0 , 1, 2
+   * New:
+   * -1
+   * ফলে নতুন note সবার আগে থাকবে।
+   * isPinned: 'desc' আছে। তাই pinned notes সবসময় unpinned notes-এর আগে থাকবে।
+   * Pinned Note → position 0, Normal Note → position 1
+   * তখন নতুন normal note-এর position -1 হলেও: New Normal Note then Old Normal Note
+   */
+
+    const firstNote = await this.prisma.note.findFirst({
+      where: {
+        userId,
+        isDeleted: false,
+
+        ...(dto.notebookId
+          ? { notebookId: dto.notebookId }
+          : {}),
+      },
+
+      orderBy: {
+        position: 'asc',
+      },
+
+      select: {
+        position: true,
+      },
+    });
+
+    const newPosition =
+      firstNote
+        ? firstNote.position - 1
+        : 0;
+
     // টাইটেল এবং কন্টেন্ট আলাদাভাবে এনক্রিপ্ট করা হচ্ছে
     const encryptedTitle = this.cryptoService.encrypt(dto.title);
     const encryptedContent = dto.content ? this.cryptoService.encrypt(dto.content) : null;
@@ -71,6 +113,7 @@ export class NoteService {
 
         color: dto.color ?? '#FFFFFF',
         isPinned: dto.isPinned ?? false,
+        position: newPosition,
         notebookId: dto.notebookId ?? null,
         userId,
       },
