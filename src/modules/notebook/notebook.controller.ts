@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -49,12 +50,37 @@ export class NotebookController {
 
   /**
    * [GET /notebooks]
-   * কী করে: লগড-ইন ইউজারের সব নোটবুকের তালিকা নিয়ে আসে।
+   * লগড-ইন ইউজারের সব নোটবুকের তালিকা নিয়ে আসে।
+   * GET /notebooks
+   *
+   * Normal:
+   * /notebooks?limit=20
+   *
+   * Next page:
+   * /notebooks?limit=20&cursor=...
+   *
+   * Search:
+   * /notebooks?limit=20&search=test
    */
 
   @Get()
-  findAll(@Req() req: AuthenticatedRequest) {
-    return this.notebookService.findAllByUser(req.user.id);
+  findAll(
+    @Req() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+    @Query('search') search?: string,
+  ) {
+    const parsedLimit = Math.min(
+      Math.max(Number(limit) || 20, 1),
+      50,
+    );
+
+    return this.notebookService.findAllByUser(
+      req.user.id,
+      parsedLimit,
+      cursor,
+      search,
+    );
   }
 
   /**
@@ -76,19 +102,33 @@ export class NotebookController {
   }
 
   // drag and drop 
+  /**
+  * PATCH /notebooks/reorder
+  *
+  * Pagination-safe reorder.
+  *
+  * Example:
+  * {
+  *   id: "dragged-id",
+  *   beforeId: "previous-id",
+  *   afterId: "next-id"
+  * }
+  */
   @Patch('reorder')
   reorderNotebooks(
     @Req() req: AuthenticatedRequest,
-    @Body() body: {
-      items: {
-        id: string;
-        position: number;
-      }[];
+    @Body()
+    body: {
+      id: string;
+      beforeId?: string | null;
+      afterId?: string | null;
     },
   ) {
     return this.notebookService.reorderNotebooks(
       req.user.id,
-      body.items,
+      body.id,
+      body.beforeId ?? null,
+      body.afterId ?? null,
     );
   }
 

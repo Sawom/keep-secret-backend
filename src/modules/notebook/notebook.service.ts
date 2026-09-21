@@ -58,25 +58,166 @@ export class NotebookService {
    * - `include: { _count: { select: { notes: true } } }` দিয়ে প্রতিটি নোটবুকের ভেতরে কতগুলো নোট আছে তার সংখ্যা গণনা করা হয়।
    */
 
-  async findAllByUser(userId: string) {
-    const userNotebooks = await this.prisma.notebook.findMany({
-      where: {
-        userId: userId,
-        isDeleted: false,
-      },
-      orderBy: {
-        position: 'asc',
-      },
-      include: {
-        _count: {
-          select: {
-            notes: true, // নোটবুকের ভেতরে টোটাল নোট সংখ্যা
+  async findAllByUser(
+    userId: string,
+    limit = 20,
+    cursor?: string,
+    search?: string,
+  ) {
+    let cursorData:
+      | {
+        position: number;
+        id: string;
+      }
+      | null = null;
+
+    /**
+     * Cursor decode
+     */
+    if (cursor) {
+      try {
+        const decoded = JSON.parse(
+          Buffer.from(cursor, 'base64url').toString('utf8'),
+        );
+
+        if (
+          typeof decoded.position !== 'number' ||
+          typeof decoded.id !== 'string'
+        ) {
+          throw new Error('Invalid cursor');
+        }
+
+        cursorData = {
+          position: decoded.position,
+          id: decoded.id,
+        };
+      } catch {
+        throw new Error('Invalid notebook cursor');
+      }
+    }
+
+    const normalizedSearch =
+      search?.trim() || '';
+
+    /**
+     * Base condition
+     */
+    const where: any = {
+      userId,
+      isDeleted: false,
+    };
+
+    /**
+     * Search condition
+     *
+     * Notebook search করবে:
+     * - title
+     * - description
+     */
+    if (normalizedSearch) {
+      where.AND = [
+        {
+          OR: [
+            {
+              title: {
+                contains: normalizedSearch,
+                mode: 'insensitive',
+              },
+            },
+            {
+              description: {
+                contains: normalizedSearch,
+                mode: 'insensitive',
+              },
+            },
+          ],
+        },
+      ];
+    }
+
+    /**
+     * Cursor condition
+     *
+     * Order:
+     * position ASC
+     * id ASC
+     */
+    if (cursorData) {
+      const cursorCondition = {
+        OR: [
+          {
+            position: {
+              gt: cursorData.position,
+            },
+          },
+          {
+            position: cursorData.position,
+            id: {
+              gt: cursorData.id,
+            },
+          },
+        ],
+      };
+
+      if (Array.isArray(where.AND)) {
+        where.AND.push(cursorCondition);
+      } else {
+        where.AND = [cursorCondition];
+      }
+    }
+
+    /**
+     * limit + 1
+     *
+     * Extra item দিয়ে hasMore detect করা হবে।
+     */
+    const notebooks =
+      await this.prisma.notebook.findMany({
+        where,
+        orderBy: [
+          {
+            position: 'asc',
+          },
+          {
+            id: 'asc',
+          },
+        ],
+        take: limit + 1,
+        include: {
+          _count: {
+            select: {
+              notes: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return userNotebooks;
+    const hasMore =
+      notebooks.length > limit;
+
+    const pageNotebooks = hasMore
+      ? notebooks.slice(0, limit)
+      : notebooks;
+
+    let nextCursor: string | null = null;
+
+    if (hasMore && pageNotebooks.length > 0) {
+      const lastNotebook =
+        pageNotebooks[pageNotebooks.length - 1];
+
+      nextCursor = Buffer.from(
+        JSON.stringify({
+          position: lastNotebook.position,
+          id: lastNotebook.id,
+        }),
+      ).toString('base64url');
+    }
+
+    return {
+      data: pageNotebooks,
+      nextCursor,
+      hasMore,
+    };
   }
 
   /**
@@ -370,54 +511,161 @@ export class NotebookService {
   // drag and drop 
   async reorderNotebooks(
     userId: string,
-    items: { id: string; position: number }[],
+    draggedId: string,
+    beforeId: string | null,
+    afterId: string | null,
   ) {
-    if (!Array.isArray(items) || items.length === 0) {
-      return {
-        message: 'No notebooks to reorder',
-      };
-    }
-
-    // ১. পাঠানো notebook ID গুলো বের করা
-    const notebookIds = items.map((item) => item.id);
-
-    // ২. সব notebook এই user-এর কিনা verify করা
-    const notebooks = await this.prisma.notebook.findMany({
-      where: {
-        id: {
-          in: notebookIds,
+    /**
+     * Dragged notebook অবশ্যই current user's
+     * active notebook হতে হবে।
+     */
+    const draggedNotebook =
+      await this.prisma.notebook.findFirst({
+        where: {
+          id: draggedId,
+          userId,
+          isDeleted: false,
         },
-        userId,
-        isDeleted: false,
-      },
-      select: {
-        id: true,
-      },
-    });
+        select: {
+          id: true,
+        },
+      });
 
-    // ৩. অন্য user-এর notebook reorder করার চেষ্টা হলে reject
-    if (notebooks.length !== notebookIds.length) {
+    if (!draggedNotebook) {
       throw new ForbiddenException(
-        'You do not have permission to reorder these notebooks',
+        'You do not have permission to reorder this notebook',
       );
     }
 
-    // ৪. সব position এক transaction-এর মধ্যে update
-    await this.prisma.$transaction(
-      items.map((item) =>
-        this.prisma.notebook.update({
+    /**
+     * Neighbor IDs থাকলে সেগুলোও current user's
+     * active notebook কিনা verify করি।
+     */
+    const neighborIds = [
+      beforeId,
+      afterId,
+    ].filter(
+      (id): id is string =>
+        Boolean(id) && id !== draggedId,
+    );
+
+    if (neighborIds.length > 0) {
+      const neighbors =
+        await this.prisma.notebook.findMany({
           where: {
-            id: item.id,
+            id: {
+              in: neighborIds,
+            },
+            userId,
+            isDeleted: false,
           },
-          data: {
-            position: item.position,
+          select: {
+            id: true,
           },
-        }),
+        });
+
+      if (
+        neighbors.length !== neighborIds.length
+      ) {
+        throw new ForbiddenException(
+          'Invalid notebook reorder target',
+        );
+      }
+    }
+
+    /**
+     * পুরো active notebook order database থেকে নেওয়া।
+     *
+     * Frontend-এর কাছে শুধু 20টা notebook থাকলেও
+     * এখানে সব notebook পাওয়া যাবে।
+     */
+    const notebooks =
+      await this.prisma.notebook.findMany({
+        where: {
+          userId,
+          isDeleted: false,
+        },
+        orderBy: [
+          {
+            position: 'asc',
+          },
+          {
+            id: 'asc',
+          },
+        ],
+        select: {
+          id: true,
+        },
+      });
+
+    /**
+     * Dragged notebook remove করা।
+     */
+    const reordered = notebooks.filter(
+      (notebook) =>
+        notebook.id !== draggedId,
+    );
+
+    /**
+     * Target position বের করা।
+     */
+    let insertIndex = reordered.length;
+
+    if (afterId) {
+      const afterIndex =
+        reordered.findIndex(
+          (notebook) =>
+            notebook.id === afterId,
+        );
+
+      if (afterIndex !== -1) {
+        insertIndex = afterIndex;
+      }
+    } else if (beforeId) {
+      const beforeIndex =
+        reordered.findIndex(
+          (notebook) =>
+            notebook.id === beforeId,
+        );
+
+      if (beforeIndex !== -1) {
+        insertIndex = beforeIndex + 1;
+      }
+    }
+
+    /**
+     * Dragged notebook নতুন জায়গায় বসানো।
+     */
+    reordered.splice(insertIndex, 0, {
+      id: draggedId,
+    });
+
+    /**
+     * সব active notebook-এর position
+     * transaction-এর মধ্যে normalize করা।
+     *
+     * ফলে:
+     * 0, 1, 2, 3...
+     *
+     * কোনো duplicate / gap থাকবে না।
+     */
+    await this.prisma.$transaction(
+      reordered.map(
+        (notebook, index) =>
+          this.prisma.notebook.update({
+            where: {
+              id: notebook.id,
+            },
+            data: {
+              position: index,
+            },
+          }),
       ),
     );
 
     return {
-      message: 'Notebooks reordered successfully',
+      message:
+        'Notebooks reordered successfully',
     };
   }
 
