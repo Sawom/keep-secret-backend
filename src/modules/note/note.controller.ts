@@ -119,17 +119,24 @@ export class NoteController {
    * [PATCH /notes/reorder]
    * ড্র্যাগ এন্ড ড্রপের পর নোটগুলোর নতুন পজিশন সেভ করার রাউট
    */
+
   @Patch('reorder')
   reorderNotes(
     @Req() req: AuthenticatedRequest,
-    @Body() body: {
+    @Body()
+    body: {
+      notebookId?: string;
       items: {
         id: string;
         position: number;
       }[];
     },
   ) {
-    return this.noteService.reorderNotes(req.user.id, body.items);
+    return this.noteService.reorderNotes(
+      req.user.id,
+      body.items,
+      body.notebookId ?? null,
+    );
   }
 
   /**

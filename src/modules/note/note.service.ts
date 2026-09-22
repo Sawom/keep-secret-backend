@@ -46,83 +46,114 @@ export class NoteService {
 
   async create(userId: string, dto: CreateNoteDto) {
     if (dto.notebookId) {
-      const notebook = await this.prisma.notebook.findUnique({
-        where: { id: dto.notebookId },
+      // মানে deleted notebook-এর ভিতরেও note create করা যাবে না।
+      const notebook = await this.prisma.notebook.findFirst({
+        where: {
+          id: dto.notebookId,
+          userId,
+          isDeleted: false,
+        },
       });
 
-      if (!notebook || notebook.userId !== userId) {
-        throw new ForbiddenException('Invalid Notebook ID');
+      if (!notebook) {
+        throw new ForbiddenException(
+          'Invalid Notebook ID'
+        );
       }
     }
 
-    /*
-   * নতুন note-এর জন্য first position বের করা হচ্ছে।
-   *
-   * Existing notes-এর মধ্যে সবচেয়ে ছোট position
-   * নেওয়া হবে এবং তার থেকে 1 কম position দেওয়া হবে।
-   *
-   * Example:
-   *
-   * Existing:
-   * 0 , 1, 2
-   * New:
-   * -1
-   * ফলে নতুন note সবার আগে থাকবে।
-   * isPinned: 'desc' আছে। তাই pinned notes সবসময় unpinned notes-এর আগে থাকবে।
-   * Pinned Note → position 0, Normal Note → position 1
-   * তখন নতুন normal note-এর position -1 হলেও: New Normal Note then Old Normal Note
-   */
-
-    const firstNote = await this.prisma.note.findFirst({
-      where: {
-        userId,
-        isDeleted: false,
-
-        ...(dto.notebookId
-          ? { notebookId: dto.notebookId }
-          : {}),
-      },
-
-      orderBy: {
-        position: 'asc',
-      },
-
-      select: {
-        position: true,
-      },
-    });
+    const firstNote =
+      await this.prisma.note.findFirst({
+        where: {
+          userId,
+          isDeleted: false,
+          ...(dto.notebookId
+            ? {
+              notebookId:
+                dto.notebookId,
+            }
+            : {}),
+        },
+        orderBy: {
+          position: 'asc',
+        },
+        select: {
+          position: true,
+        },
+      });
 
     const newPosition =
       firstNote
         ? firstNote.position - 1
         : 0;
 
-    // টাইটেল এবং কন্টেন্ট আলাদাভাবে এনক্রিপ্ট করা হচ্ছে
-    const encryptedTitle = this.cryptoService.encrypt(dto.title);
-    const encryptedContent = dto.content ? this.cryptoService.encrypt(dto.content) : null;
+    const encryptedTitle =
+      this.cryptoService.encrypt(
+        dto.title
+      );
 
-    const newNote = await this.prisma.note.create({
-      data: {
-        title: encryptedTitle.encryptedData,
-        titleIv: encryptedTitle.iv,
-        titleAuthTag: encryptedTitle.authTag,
+    const encryptedContent =
+      dto.content
+        ? this.cryptoService.encrypt(
+          dto.content
+        )
+        : null;
 
-        content: encryptedContent ? encryptedContent.encryptedData : '',
-        contentIv: encryptedContent ? encryptedContent.iv : null,
-        contentAuthTag: encryptedContent ? encryptedContent.authTag : null,
+    const newNote =
+      await this.prisma.note.create({
+        data: {
+          title:
+            encryptedTitle.encryptedData,
 
-        color: dto.color ?? '#FFFFFF',
-        isPinned: dto.isPinned ?? false,
-        position: newPosition,
-        notebookId: dto.notebookId ?? null,
-        userId,
-      },
-    });
+          titleIv:
+            encryptedTitle.iv,
 
-    await this.auditLogService.log(userId, {
-      action: 'NOTE_CREATE',
-      details: { noteId: newNote.id, title: dto.title },
-    });
+          titleAuthTag:
+            encryptedTitle.authTag,
+
+          content:
+            encryptedContent
+              ? encryptedContent.encryptedData
+              : '',
+
+          contentIv:
+            encryptedContent
+              ? encryptedContent.iv
+              : null,
+
+          contentAuthTag:
+            encryptedContent
+              ? encryptedContent.authTag
+              : null,
+
+          color:
+            dto.color ?? '#FFFFFF',
+
+          isPinned:
+            dto.isPinned ?? false,
+
+          position:
+            newPosition,
+
+          notebookId:
+            dto.notebookId ?? null,
+
+          userId,
+        },
+      });
+
+    await this.auditLogService.log(
+      userId,
+      {
+        action: 'NOTE_CREATE',
+        details: {
+          noteId: newNote.id,
+          title: dto.title,
+          notebookId:
+            dto.notebookId ?? null,
+        },
+      }
+    );
 
     return this.decryptNote(newNote);
   }
@@ -598,37 +629,107 @@ export class NoteService {
   iv, authTag সহ আপডেট করার লজিক যুক্ত করা হয়েছে
   */
 
-  async update(id: string, userId: string, dto: UpdateNoteDto) {
-    await this.findOne(id, userId);
+  async update(
+    id: string,
+    userId: string,
+    dto: UpdateNoteDto
+  ) {
+    const existingNote =
+      await this.prisma.note.findFirst({
+        where: {
+          id,
+          userId,
+        },
+      });
+
+    if (!existingNote) {
+      throw new NotFoundException(
+        'Note not found'
+      );
+    }
 
     const updateData: any = {};
 
-    // টাইটেল আপডেট হলে আলাদাভাবে এনক্রিপ্ট ও মেটাডাটা সেট হবে
     if (dto.title !== undefined) {
-      const encryptedTitle = this.cryptoService.encrypt(dto.title);
-      updateData.title = encryptedTitle.encryptedData;
-      updateData.titleIv = encryptedTitle.iv;
-      updateData.titleAuthTag = encryptedTitle.authTag;
+      const encryptedTitle =
+        this.cryptoService.encrypt(
+          dto.title
+        );
+
+      updateData.title =
+        encryptedTitle.encryptedData;
+
+      updateData.titleIv =
+        encryptedTitle.iv;
+
+      updateData.titleAuthTag =
+        encryptedTitle.authTag;
     }
 
-    // কন্টেন্ট আপডেট হলে আলাদাভাবে এনক্রিপ্ট ও মেটাডাটা সেট হবে
     if (dto.content !== undefined) {
-      const encryptedContent = this.cryptoService.encrypt(dto.content);
-      updateData.content = encryptedContent.encryptedData;
-      updateData.contentIv = encryptedContent.iv;
-      updateData.contentAuthTag = encryptedContent.authTag;
+      const encryptedContent =
+        this.cryptoService.encrypt(
+          dto.content
+        );
+
+      updateData.content =
+        encryptedContent.encryptedData;
+
+      updateData.contentIv =
+        encryptedContent.iv;
+
+      updateData.contentAuthTag =
+        encryptedContent.authTag;
     }
 
-    if (dto.color !== undefined) updateData.color = dto.color;
-    if (dto.isPinned !== undefined) updateData.isPinned = dto.isPinned;
-    if (dto.notebookId !== undefined) updateData.notebookId = dto.notebookId;
+    if (dto.color !== undefined) {
+      updateData.color = dto.color;
+    }
 
-    const updatedNote = await this.prisma.note.update({
-      where: { id },
-      data: updateData,
-    });
+    if (dto.isPinned !== undefined) {
+      updateData.isPinned = dto.isPinned;
+    }
 
-    return this.decryptNote(updatedNote);
+    /*
+     * notebookId change করা হলে
+     * নতুন notebook অবশ্যই current user's
+     * active notebook হতে হবে।
+     */
+    if (dto.notebookId !== undefined) {
+      if (dto.notebookId === null) {
+        updateData.notebookId = null;
+      } else {
+        const notebook =
+          await this.prisma.notebook.findFirst({
+            where: {
+              id: dto.notebookId,
+              userId,
+              isDeleted: false,
+            },
+          });
+
+        if (!notebook) {
+          throw new ForbiddenException(
+            'Invalid Notebook ID'
+          );
+        }
+
+        updateData.notebookId =
+          dto.notebookId;
+      }
+    }
+
+    const updatedNote =
+      await this.prisma.note.update({
+        where: {
+          id,
+        },
+        data: updateData,
+      });
+
+    return this.decryptNote(
+      updatedNote
+    );
   }
 
   /**
@@ -749,54 +850,104 @@ export class NoteService {
    */
   async reorderNotes(
     userId: string,
-    items: { id: string; position: number }[],
+    items: {
+      id: string;
+      position: number;
+    }[],
+    notebookId: string | null = null,
   ) {
-    if (!Array.isArray(items) || items.length === 0) {
+    if (
+      !Array.isArray(items) ||
+      items.length === 0
+    ) {
       return {
-        message: 'No notes to reorder',
+        message:
+          'No notes to reorder',
       };
     }
 
-    // ১. পাঠানো সব note ID এই user-এর কিনা verify করা
-    const noteIds = items.map((item) => item.id);
+    /*
+     * Notebook ID দিলে সেটাও validate করা হবে।
+     */
+    if (notebookId) {
+      const notebook =
+        await this.prisma.notebook.findFirst({
+          where: {
+            id: notebookId,
+            userId,
+            isDeleted: false,
+          },
+          select: {
+            id: true,
+          },
+        });
 
-    const notes = await this.prisma.note.findMany({
-      where: {
-        id: {
-          in: noteIds,
+      if (!notebook) {
+        throw new ForbiddenException(
+          'Invalid Notebook'
+        );
+      }
+    }
+
+    const noteIds =
+      items.map(
+        (item) => item.id
+      );
+
+    const notes =
+      await this.prisma.note.findMany({
+        where: {
+          id: {
+            in: noteIds,
+          },
+
+          userId,
+
+          isDeleted: false,
+
+          ...(notebookId
+            ? {
+              notebookId,
+            }
+            : {}),
         },
-        userId,
-        isDeleted: false,
-      },
-      select: {
-        id: true,
-      },
-    });
 
-    // ২. Security check
-    // অন্য user-এর note ID পাঠালে reject করবে
-    if (notes.length !== noteIds.length) {
+        select: {
+          id: true,
+        },
+      });
+
+    /*
+     * প্রত্যেকটা note একই user এবং
+     * একই notebook-এর কিনা verify।
+     */
+    if (
+      notes.length !==
+      noteIds.length
+    ) {
       throw new ForbiddenException(
-        'You do not have permission to reorder these notes',
+        'You do not have permission to reorder these notes'
       );
     }
 
-    // ৩. সব position এক transaction-এর মধ্যে update করা
     await this.prisma.$transaction(
       items.map((item) =>
         this.prisma.note.update({
           where: {
             id: item.id,
           },
+
           data: {
-            position: item.position,
+            position:
+              item.position,
           },
-        }),
-      ),
+        })
+      )
     );
 
     return {
-      message: 'Notes reordered successfully',
+      message:
+        'Notes reordered successfully',
     };
   }
 
