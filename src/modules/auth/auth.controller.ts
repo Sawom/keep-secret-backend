@@ -25,9 +25,6 @@ export class AuthController {
 
     /**
  * [POST] /auth/login
- *
- * 🔧 CHANGED:
- *
  * Access Token এবং Refresh Token দুটোই HttpOnly cookie হিসেবে
  * সেট করা হচ্ছে।
  *
@@ -70,7 +67,7 @@ export class AuthController {
         });
 
         /*
-         * 🔧 CHANGED:
+         *  
          *
          * Access token আর response body-তে পাঠানো হবে না।
          */
@@ -83,7 +80,7 @@ export class AuthController {
     /**
  * [POST] /auth/refresh
  *
- * 🔧 CHANGED:
+ *  
  *
  * Refresh Token HttpOnly cookie থেকে নেওয়া হবে।
  * নতুন Access Token HttpOnly cookie-তে সেট হবে।
@@ -125,7 +122,7 @@ export class AuthController {
     /**
  * [POST] /auth/logout
  *
- * 🔧 CHANGED:
+ *  
  *
  * Access token expired হলেও logout যেন কাজ করে।
  * তাই এই endpoint-এর জন্য expired access token-এর উপর
@@ -202,7 +199,7 @@ export class AuthController {
     /**
  * [GET] /auth/google/callback
  *
- * 🔧 CHANGED:
+ *  
  *
  * Google login-এর Access Token আর URL parameter হিসেবে
  * frontend-এ পাঠানো হবে না।
@@ -249,7 +246,7 @@ export class AuthController {
             process.env.FRONTEND_URL;
 
         /*
-         * 🔧 CHANGED:
+         *  
          *
          * URL-এ কোনো token নেই।
          */

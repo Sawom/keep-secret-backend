@@ -274,7 +274,7 @@ export class NotebookService {
   /**
  * নোটবুক ট্র্যাশে পাঠানো (Soft Delete)
  *
- * 🔧 CHANGED:
+ *  
  *
  * Notebook-এর সাথে active notes-গুলোও একই transaction-এ
  * trash-এ যাবে।
@@ -355,7 +355,7 @@ export class NotebookService {
   /**
  * স্থায়ীভাবে নোটবুক ডিলিট করা
  *
- * 🔧 CHANGED:
+ *  
  *
  * Notebook-এর সাথে notebook-trash-এর কারণে
  * deleted হওয়া notes-গুলোও permanently delete হবে।
@@ -440,7 +440,7 @@ export class NotebookService {
   /**
  * ট্র্যাশ থেকে নোটবুক Restore করা
  *
- * 🔧 CHANGED:
+ *  
  *
  * Notebook-এর সাথে যেসব notes notebook trash-এর কারণে
  * trash হয়েছিল শুধু সেগুলো restore হবে।

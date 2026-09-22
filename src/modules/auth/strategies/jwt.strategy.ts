@@ -24,7 +24,7 @@ export class JwtStrategy
     ) {
         super({
             /*
-             * 🔧 CHANGED:
+             *  
              *
              * Authorization header আর ব্যবহার করা হবে না।
              *

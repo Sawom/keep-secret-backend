@@ -735,7 +735,7 @@ export class NoteService {
   /**
  * [৫. সফট ডিলিট / ট্র্যাশে পাঠানো]
  *
- * 🔧 CHANGED:
+ *  
  *
  * User manually note delete করলে এটা
  * notebook-এর কারণে deleted হিসেবে mark হবে না।
