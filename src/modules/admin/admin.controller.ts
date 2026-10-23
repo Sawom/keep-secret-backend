@@ -7,9 +7,11 @@ import { AdminService } from './admin.service.js';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+  ) { }
 
-  // GET /admin/health: available only to users whose current DB role is ADMIN.
+  // GET /admin/health
   @Get('health')
   getHealthReport() {
     return this.adminService.getHealthReport();
