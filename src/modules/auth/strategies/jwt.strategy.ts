@@ -45,6 +45,7 @@ export class JwtStrategy
         });
     }
 
+    // return db role
     async validate(
         payload: {
             sub: string;
@@ -68,6 +69,9 @@ export class JwtStrategy
             id: user.id,
             email: user.email,
             name: user.fullName,
+            // Admin authorization uses the current role stored in Neon/Prisma.
+            role: user.role,
         };
     }
+
 }
