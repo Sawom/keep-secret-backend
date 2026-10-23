@@ -116,6 +116,22 @@ export class NoteController {
   }
 
   /**
+   * [DELETE /notes/bulk] BACKEND: soft-delete a batch of notes owned by the signed-in user.
+   * Route stays above /:id so the literal path is matched first.
+   */
+  @Delete('bulk')
+  bulkSoftDelete(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { ids?: string[] },
+  ) {
+    if (!Array.isArray(body?.ids)) {
+      throw new BadRequestException('ids must be an array');
+    }
+    return this.noteService.bulkSoftDelete(body.ids, req.user.id);
+  }
+
+
+  /**
    * [PATCH /notes/reorder]
    * ড্র্যাগ এন্ড ড্রপের পর নোটগুলোর নতুন পজিশন সেভ করার রাউট
    */
