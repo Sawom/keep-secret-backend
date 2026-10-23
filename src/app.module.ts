@@ -9,9 +9,12 @@ import { NoteModule } from './modules/note/note.module.js';
 import { AuditLogModule } from './modules/audit-log/audit-log.module.js';
 import { UserModule } from './modules/user/user.module.js';
 import { TrashModule } from './trash/trash.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
+import { MetricsModule } from './modules/metrics/metrics.module.js';
 
 @Module({
-  imports: [CryptoModule, PrismaModule, AuthModule, NotebookModule, NoteModule, AuditLogModule, UserModule, TrashModule],
+  imports: [CryptoModule, PrismaModule, AuthModule, NotebookModule, NoteModule, AuditLogModule, 
+    UserModule, TrashModule, AdminModule, MetricsModule],
   controllers: [AppController],
   providers: [AppService],
 })
