@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -777,7 +778,42 @@ export class NoteService {
   }
 
 
-  
+  /**
+  * [BULK TRASH] BACKEND: move up to 100 owned active notes to Trash in one request.
+  * Existing Trash/Restore behavior is preserved; this is not a permanent delete.
+  */
+  async bulkSoftDelete(ids: string[], userId: string) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('Select at least one note');
+    }
+
+    const uniqueIds = [...new Set(ids.filter((id) => typeof id === 'string' && id.trim().length > 0))];
+    if (uniqueIds.length === 0 || uniqueIds.length > 100) {
+      throw new BadRequestException('Select between 1 and 100 notes');
+    }
+
+    const ownedNotes = await this.prisma.note.findMany({
+      where: { id: { in: uniqueIds }, userId, isDeleted: false },
+      select: { id: true },
+    });
+
+    // Reject the whole batch if an ID is missing, already trashed, or belongs to another user.
+    if (ownedNotes.length !== uniqueIds.length) {
+      throw new ForbiddenException('Some selected notes are unavailable or you do not have permission to delete them');
+    }
+
+    const result = await this.prisma.note.updateMany({
+      where: { id: { in: uniqueIds }, userId, isDeleted: false },
+      data: { isDeleted: true, deletedAt: new Date(), deletedWithNotebook: false },
+    });
+
+    await this.auditLogService.log(userId, {
+      action: 'NOTE_BULK_TRASH',
+      details: { count: result.count, noteIds: uniqueIds },
+    });
+
+    return { message: 'Selected notes moved to Trash', count: result.count };
+  }
 
   /**
    * [৬. স্থায়ীভাবে নোট ডিলিট করা (Hard Delete)]
